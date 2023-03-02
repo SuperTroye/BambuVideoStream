@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import * as signalR from "@microsoft/signalr";
-import { PrintMessage } from './models/PrintMessage';
+import { Ams, PrintMessage } from './models/PrintMessage';
 
 
 @Component({
@@ -45,6 +45,27 @@ export class AppComponent implements OnInit {
     let fanSpeed = +fanspeedvar;
     let percent = (fanSpeed / 15);
     return percent;
+  }
+
+
+  getCurrentAmsTray(msg: Ams) {
+
+    if (msg.tray_now !== undefined) {
+      for (let ams of msg.ams) {
+        for (let tray of ams.tray) {
+          if (tray.id == msg.tray_now) {
+            if (tray.tray_type == undefined || tray.tray_type == "") {
+              tray.tray_type = "Empty"
+            }
+            return tray;
+          }
+        }
+      }
+    } else {
+      return null;
+    }
+
+    return null;
   }
 
 
