@@ -1,0 +1,16 @@
+
+<div>
+  <h4>Files in /cache</h4>
+
+  <p-dataView [value]="filesInCache">
+    <ng-template let-file pTemplate="listItem">
+      <div>
+        {{file.name}}
+      </div>
+    </ng-template>
+  </p-dataView>
+
+
+</div>
+
+

@@ -106,7 +106,7 @@ namespace OBSProject
             {
                 string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
 
-                //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json);
+                //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + Environment.NewLine);
 
                 var doc = JsonDocument.Parse(json);
 

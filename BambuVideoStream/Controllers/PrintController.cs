@@ -11,6 +11,7 @@ using WinSCP;
 using System.IO.Compression;
 using System.IO;
 using System.Text;
+using System.Reflection.Metadata;
 
 namespace OBSProject
 {
@@ -30,19 +31,13 @@ namespace OBSProject
             settings = new BambuSettings();
             config.GetSection("BambuSettings").Bind(settings);
 
-
-            string host = settings.ipAddress;
-            string username = settings.username;
-            string password = settings.password;
-            int port = 990;
-
             sessionOptions = new SessionOptions
             {
                 Protocol = Protocol.Ftp,
-                HostName = host,
-                PortNumber = port,
-                UserName = username,
-                Password = password,
+                HostName = settings.ipAddress,
+                PortNumber = 990,
+                UserName = settings.username,
+                Password = settings.password,
                 FtpSecure = FtpSecure.Implicit,
                 GiveUpSecurityAndAcceptAnyTlsHostCertificate = true
             };
@@ -80,25 +75,27 @@ namespace OBSProject
 
 
 
-        // http://localhost:5000/api/Print/GetFileThumbnail
-        public IActionResult GetFileThumbnail()
+        // http://localhost:5000/api/Print/GetFileThumbnail?filename=/cache/Print%20plate%20Axis%20Washers%20handle.3mf
+        public IActionResult GetFileThumbnail(string filename)
         {
-            using Session session = new Session();
+            using (Session session = new Session())
+            {
+                session.Open(sessionOptions);
 
-            session.Open(sessionOptions);
+                using (var stream = session.GetFile(filename))
+                {
+                    using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
+                    {
+                        using (var entryStream = archive.GetEntry("Metadata/plate_1.png").Open())
+                        {
+                            MemoryStream memoryStream = new MemoryStream();
+                            entryStream.CopyTo(memoryStream);
 
-            var stream = session.GetFile("/cache/Print plate Axis Washers handle.3mf");
-
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
-
-            using Stream entryStream = archive.GetEntry("Metadata/plate1.png").Open();
-
-            using var reader = new StreamReader(entryStream, Encoding.UTF8);
-
-            string data = reader.ReadToEnd();
-
-            return Ok();
-
+                            return File(memoryStream, "image/png", "preview.png");
+                        }
+                    }
+                }
+            }
         }
 
 

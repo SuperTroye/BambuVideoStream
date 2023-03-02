@@ -4,6 +4,8 @@
 
 You will need OBS Studio with all the InputText sources defined. 
 
+instructions for streaming the Bambu webcam with OBS are here: https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera.
+
 Those will get updated when a message is received from MQTT. 
 
 I'm sure there is a better way to do this, but it works for now.
