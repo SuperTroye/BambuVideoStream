@@ -11,13 +11,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddLogging(options => options.AddConsole());
 
 builder.Services.AddCors(x => {
-    x.AddDefaultPolicy(y => y.AllowAnyHeader().AllowAnyOrigin());
+    x.AddDefaultPolicy(y => y
+    .WithOrigins("http://localhost:4200")
+    .AllowAnyHeader()
+    .AllowCredentials()
+    .AllowAnyMethod()
+    );
 });
 
 
 // Add services to the container
 builder.Services.AddControllers();
-
+builder.Services.AddSignalR();
 builder.Services.AddHostedService<MqttClientBackgroundService>();
 
 var app = builder.Build();
@@ -34,5 +39,5 @@ if (!app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.MapControllers();
-
+app.MapHub<SignalRHub>("/signalr");
 app.Run();
