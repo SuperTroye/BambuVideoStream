@@ -1,12 +1,14 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json.Linq;
 using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Types;
 using System;
+using System.Drawing;
 using System.Linq;
 using System.Security.Authentication;
 using System.Text;
@@ -35,14 +37,18 @@ namespace BambuVideoStream
         InputSettings auxFan;
         InputSettings chamberFan;
         InputSettings filament;
+        InputSettings printWeight;
 
         private readonly IHubContext<SignalRHub> _hubContext;
+        private FtpService ftpService;
 
-
-        public MqttClientBackgroundService(IConfiguration config, IHubContext<SignalRHub> hubContext)
+        public MqttClientBackgroundService(
+            IConfiguration config,
+            IHubContext<SignalRHub> hubContext,
+            FtpService ftpService,
+            IOptions<BambuSettings> options)
         {
-            settings = new BambuSettings();
-            config.GetSection("BambuSettings").Bind(settings);
+            settings = options.Value;
 
             ObsWsConnection = config.GetValue<string>("ObsWsConnection");
 
@@ -52,6 +58,7 @@ namespace BambuVideoStream
 
 
             _hubContext = hubContext;
+            this.ftpService = ftpService;
         }
 
 
@@ -71,6 +78,7 @@ namespace BambuVideoStream
             //CreateTextInput("AuxFan");
             //CreateTextInput("ChamberFan");
             //CreateTextInput("Filament");
+            //CreateTextInput("PrintWeight");
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
@@ -84,6 +92,7 @@ namespace BambuVideoStream
             auxFan = obs.GetInputSettings("AuxFan");
             chamberFan = obs.GetInputSettings("ChamberFan");
             filament = obs.GetInputSettings("Filament");
+            printWeight = obs.GetInputSettings("PrintWeight");
         }
 
 
@@ -133,7 +142,15 @@ namespace BambuVideoStream
 
                                 UpdateSettingText(percentComplete, $"{p.print.mc_percent}%");
                                 UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
-                                UpdateSettingText(timeRemaining, $"-{p.print.mc_remaining_time}m");
+
+                                var time = TimeSpan.FromMinutes(p.print.mc_remaining_time);
+                                string timeFormatted = "";
+                                if (time.TotalMinutes > 59)
+                                    timeFormatted = string.Format("-{0}h{1}m", (int)time.TotalHours, time.Minutes);
+                                else
+                                    timeFormatted = string.Format("-{0}m", time.Minutes);
+
+                                UpdateSettingText(timeRemaining, timeFormatted);
                                 UpdateSettingText(subtaskName, $"{p.print.subtask_name}");
                                 UpdateSettingText(stage, $"{p.print.current_stage}");
 
@@ -142,19 +159,22 @@ namespace BambuVideoStream
                                 UpdateSettingText(chamberFan, $"Cham: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
 
                                 var tray = GetCurrentTray(p.print.ams);
-                                if(tray != null)
+                                if (tray != null)
                                     UpdateSettingText(filament, tray.tray_type);
 
-                                if (p.print.subtask_name != subtask_name)
+                                if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
                                 {
                                     subtask_name = p.print.subtask_name;
 
-                                    GetFileImagePreview(subtask_name);
+                                    GetFileImagePreview($"/cache/{subtask_name}.3mf");
+
+                                    var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
+
+                                    UpdateSettingText(printWeight, $"{weight}g");
                                 }
 
-
+                                GetTrayColor(p.print.ams);
                             }
-
 
                             await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
                         }
@@ -227,7 +247,18 @@ namespace BambuVideoStream
 
         void GetFileImagePreview(string fileName)
         {
-            Console.WriteLine("filename is different");
+            Console.WriteLine($"getting {fileName} from ftp");
+            try
+            {
+                var bytes = ftpService.GetFileThumbnail(fileName);
+                System.IO.File.WriteAllBytes(@"d:\desktop\preview.png", bytes);
+
+                var stream = ftpService.GetPrintJobWeight(fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
 
@@ -253,6 +284,27 @@ namespace BambuVideoStream
 
             return null;
         }
+
+
+
+        public void GetTrayColor(Ams msg)
+        {
+            var currentTray = GetCurrentTray(msg);
+
+            if (currentTray != null)
+            {
+                var color = currentTray.tray_color;
+
+                var col = System.Drawing.ColorTranslator.FromHtml($"#{color}");
+
+                var ForeColor = col.GetBrightness() > 0.4 ? Color.Black : Color.White;
+
+                //Console.WriteLine(ForeColor);
+            }
+        }
+
+
+
 
 
         public override async Task StopAsync(CancellationToken stoppingToken)

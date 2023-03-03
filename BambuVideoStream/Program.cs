@@ -21,6 +21,8 @@ builder.Services.AddCors(x => {
 
 
 // Add services to the container
+builder.Services.Configure<BambuSettings>(builder.Configuration.GetSection(nameof(BambuSettings)));
+
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.AddTransient<FtpService>();

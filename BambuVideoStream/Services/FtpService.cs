@@ -3,6 +3,10 @@ using Microsoft.Extensions.Configuration;
 using System.IO.Compression;
 using System.IO;
 using WinSCP;
+using Microsoft.Extensions.Options;
+using System;
+using System.Xml.Linq;
+using System.Xml.XPath;
 
 namespace BambuVideoStream
 {
@@ -11,10 +15,9 @@ namespace BambuVideoStream
         BambuSettings settings;
         SessionOptions sessionOptions;
 
-        public FtpService(IConfiguration config)
+        public FtpService(IOptions<BambuSettings> options)
         {
-            settings = new BambuSettings();
-            config.GetSection("BambuSettings").Bind(settings);
+            settings = options.Value;
 
             sessionOptions = new SessionOptions
             {
@@ -55,7 +58,14 @@ namespace BambuVideoStream
                 {
                     using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
                     {
-                        using (var entryStream = archive.GetEntry("Metadata/plate_1.png").Open())
+                        string previewFileName = "Metadata/plate_1.png";
+
+                        if (filename.Contains("plate_2"))
+                        {
+                            previewFileName = "Metadata/plate_2.png";
+                        }
+
+                        using (var entryStream = archive.GetEntry(previewFileName).Open())
                         {
                             MemoryStream memoryStream = new MemoryStream();
                             entryStream.CopyTo(memoryStream);
@@ -66,6 +76,46 @@ namespace BambuVideoStream
                 }
             }
         }
+
+
+
+        public string GetPrintJobWeight(string filename)
+        {
+            try
+            {
+                using (Session session = new Session())
+                {
+                    session.Open(sessionOptions);
+
+                    using (Stream stream = session.GetFile(filename))
+                    {
+                        using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read))
+                        {
+                            string configFileName = "Metadata/slice_info.config";
+
+                            using (StreamReader reader = new StreamReader(archive.GetEntry(configFileName).Open()))
+                            {
+                                string xml = reader.ReadToEnd();
+
+                                var doc = XDocument.Parse(xml);
+                                var filamenNode = doc.XPathSelectElement("//filament");
+                                var weight = filamenNode.Attribute("used_g").Value;
+                                return weight;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+            return null;
+        }
+
+
+
 
 
         public void TransferFileOverFtp()

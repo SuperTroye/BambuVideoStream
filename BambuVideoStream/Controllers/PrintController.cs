@@ -44,14 +44,19 @@ namespace BambuVideoStream
 
 
 
-        // http://localhost:5000/api/Print/GetFileThumbnail?filename=/cache/ldo%20doors_plate_1.3mf
+        // http://localhost:5000/api/Print/GetFileThumbnail?filename=/cache/panel%20clips.3mf
         public IActionResult GetFileThumbnail(string filename)
         {
-            var bytes = service.GetFileThumbnail(filename);
+            try
+            {
+                var bytes = service.GetFileThumbnail(filename);
 
-            System.IO.File.WriteAllBytes(@"d:\desktop\preview.png", bytes);
-
-            return File(bytes, "image/png", "preview.png");
+                return File(bytes, "image/png", "preview.png");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
 
