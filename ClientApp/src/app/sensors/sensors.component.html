@@ -1,0 +1,70 @@
+
+<div>
+  <h1>Sensors</h1>
+  <div>
+    Bed: {{pm.print?.bed_temper}}/{{pm.print?.bed_target_temper}}
+  </div>
+
+  <div>
+    Chamber: {{pm.print?.chamber_temper}}
+  </div>
+
+  <div>
+    Nozzle: {{pm.print?.nozzle_temper}}/{{pm.print?.nozzle_target_temper}}
+  </div>
+
+
+  <div>
+    Part Fan: {{(+pm.print?.cooling_fan_speed / 15) | percent:'1.0'}}
+  </div>
+
+  <div>
+    Aux Fan: {{(+pm.print?.big_fan1_speed / 15) | percent:'0.0-0'}}
+  </div>
+
+  <div>
+    Chamber Fan: {{(+pm.print?.big_fan2_speed / 15) | percent:'0.0-0'}}
+  </div>
+
+</div>
+
+
+
+<div>
+  <h1>Print</h1>
+  <div>
+    Percent Complete: {{pm.print?.mc_percent}}
+  </div>
+
+  <div>
+    Layers: {{pm.print?.layer_num}}/{{pm.print?.total_layer_num}}
+  </div>
+
+  <div>
+    Time remaining: -{{pm.print?.mc_remaining_time}}m
+  </div>
+
+  <div>
+    Task Name: {{pm.print?.subtask_name}}
+  </div>
+
+  <div>
+    Current Stage: {{pm.print?.current_stage}}
+  </div>
+
+</div>
+
+
+<div *ngFor="let a of pm.print?.ams.ams" style="background-color:darkgray">
+
+  <h1>AMS {{+a.id+1}}</h1>
+
+  <div>Temp:  {{a.temp}}</div>
+  <div>Humidity:  {{a.humidity}}</div>
+
+  <div *ngFor="let t of a.tray">
+    <h4>Tray {{+t.id+1}}</h4>
+    <div style="width:40px; height:40px" [ngStyle]="{ 'background-color': '#' + t.tray_color }">{{t.tray_type}}</div>
+  </div>
+
+</div>

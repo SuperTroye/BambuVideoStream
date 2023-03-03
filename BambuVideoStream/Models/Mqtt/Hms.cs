@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace OBSProject
+namespace BambuVideoStream
 {
     public class Hms
     {

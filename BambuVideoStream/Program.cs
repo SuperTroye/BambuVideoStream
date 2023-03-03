@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OBSProject;
+using BambuVideoStream;
 
 
 
@@ -11,13 +11,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddLogging(options => options.AddConsole());
 
 builder.Services.AddCors(x => {
-    x.AddDefaultPolicy(y => y.AllowAnyHeader().AllowAnyOrigin());
+    x.AddDefaultPolicy(y => y
+    .WithOrigins("http://localhost:4200")
+    .AllowAnyHeader()
+    .AllowCredentials()
+    .AllowAnyMethod()
+    );
 });
 
 
 // Add services to the container
 builder.Services.AddControllers();
-
+builder.Services.AddSignalR();
+builder.Services.AddTransient<FtpService>();
 builder.Services.AddHostedService<MqttClientBackgroundService>();
 
 var app = builder.Build();
@@ -34,5 +40,5 @@ if (!app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.MapControllers();
-
+app.MapHub<SignalRHub>("/signalr");
 app.Run();

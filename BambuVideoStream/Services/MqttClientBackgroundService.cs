@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using MQTTnet;
 using MQTTnet.Client;
@@ -13,7 +14,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OBSProject
+namespace BambuVideoStream
 {
     public class MqttClientBackgroundService : BackgroundService
     {
@@ -33,9 +34,12 @@ namespace OBSProject
         InputSettings partFan;
         InputSettings auxFan;
         InputSettings chamberFan;
+        InputSettings filament;
+
+        private readonly IHubContext<SignalRHub> _hubContext;
 
 
-        public MqttClientBackgroundService(IConfiguration config)
+        public MqttClientBackgroundService(IConfiguration config, IHubContext<SignalRHub> hubContext)
         {
             settings = new BambuSettings();
             config.GetSection("BambuSettings").Bind(settings);
@@ -45,6 +49,9 @@ namespace OBSProject
             obs = new OBSWebsocket();
             obs.Connected += Obs_Connected;
             obs.ConnectAsync(ObsWsConnection, "");
+
+
+            _hubContext = hubContext;
         }
 
 
@@ -63,6 +70,7 @@ namespace OBSProject
             //CreateTextInput("PartFan");
             //CreateTextInput("AuxFan");
             //CreateTextInput("ChamberFan");
+            //CreateTextInput("Filament");
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
@@ -75,8 +83,12 @@ namespace OBSProject
             partFan = obs.GetInputSettings("PartFan");
             auxFan = obs.GetInputSettings("AuxFan");
             chamberFan = obs.GetInputSettings("ChamberFan");
+            filament = obs.GetInputSettings("Filament");
         }
 
+
+
+        string subtask_name;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -95,9 +107,11 @@ namespace OBSProject
                 })
                 .Build();
 
-            mqttClient.ApplicationMessageReceivedAsync += e =>
+            mqttClient.ApplicationMessageReceivedAsync += async e =>
             {
                 string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+
+                //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + Environment.NewLine);
 
                 var doc = JsonDocument.Parse(json);
 
@@ -121,12 +135,28 @@ namespace OBSProject
                                 UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
                                 UpdateSettingText(timeRemaining, $"-{p.print.mc_remaining_time}m");
                                 UpdateSettingText(subtaskName, $"{p.print.subtask_name}");
-                                UpdateSettingText(stage, $"{p.print.GetActionName(p.print.stg_cur)}");
+                                UpdateSettingText(stage, $"{p.print.current_stage}");
 
                                 UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
                                 UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
                                 UpdateSettingText(chamberFan, $"Cham: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+
+                                var tray = GetCurrentTray(p.print.ams);
+                                if(tray != null)
+                                    UpdateSettingText(filament, tray.tray_type);
+
+                                if (p.print.subtask_name != subtask_name)
+                                {
+                                    subtask_name = p.print.subtask_name;
+
+                                    GetFileImagePreview(subtask_name);
+                                }
+
+
                             }
+
+
+                            await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
                         }
                         catch (Exception ex)
                         {
@@ -144,8 +174,6 @@ namespace OBSProject
 
                         break;
                 }
-
-                return Task.CompletedTask;
             };
 
             await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
@@ -193,6 +221,37 @@ namespace OBSProject
              };
 
             obs.SetSceneItemTransform("Scene", newSceneId, transform);
+        }
+
+
+
+        void GetFileImagePreview(string fileName)
+        {
+            Console.WriteLine("filename is different");
+        }
+
+
+        private Tray GetCurrentTray(Ams msg)
+        {
+            if (!string.IsNullOrEmpty(msg?.tray_now))
+            {
+                foreach (var ams in msg.ams)
+                {
+                    foreach (var tray in ams.tray)
+                    {
+                        if (tray.id == msg.tray_now)
+                        {
+                            if (string.IsNullOrEmpty(tray.tray_type))
+                            {
+                                tray.tray_type = "Empty";
+                            }
+                            return tray;
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
 
 
