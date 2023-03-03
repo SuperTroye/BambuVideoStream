@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OBSProject;
+using BambuVideoStream;
 
 
 
@@ -23,6 +23,7 @@ builder.Services.AddCors(x => {
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+builder.Services.AddTransient<FtpService>();
 builder.Services.AddHostedService<MqttClientBackgroundService>();
 
 var app = builder.Build();

@@ -8,54 +8,28 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Text.Json;
 using WinSCP;
-using System.IO.Compression;
-using System.IO;
-using System.Text;
-using System.Reflection.Metadata;
 
-namespace OBSProject
+
+
+namespace BambuVideoStream
 {
     [Route("api/[controller]/[action]")]
     [ApiController]
     public class PrintController : ControllerBase
     {
         BambuSettings settings;
-        IConfiguration config;
+        FtpService service;
 
-        SessionOptions sessionOptions;
-
-        public PrintController(IConfiguration config)
+        public PrintController(IConfiguration config, FtpService service)
         {
-            this.config = config;
-
-            settings = new BambuSettings();
-            config.GetSection("BambuSettings").Bind(settings);
-
-            sessionOptions = new SessionOptions
-            {
-                Protocol = Protocol.Ftp,
-                HostName = settings.ipAddress,
-                PortNumber = 990,
-                UserName = settings.username,
-                Password = settings.password,
-                FtpSecure = FtpSecure.Implicit,
-                GiveUpSecurityAndAcceptAnyTlsHostCertificate = true
-            };
-
+            this.service = service;
         }
 
 
         // http://localhost:5000/api/Print/ListDirectory
         public IActionResult ListDirectory()
         {
-            using (Session session = new Session())
-            {
-                session.Open(sessionOptions);
-
-                RemoteDirectoryInfo directory = session.ListDirectory("/cache");
-
-                return Ok(directory.Files);
-            }
+            return Ok(service.ListDirectory());
         }
 
 
@@ -63,39 +37,21 @@ namespace OBSProject
         // http://localhost:5000/api/Print/TransferFileOverFtp
         public IActionResult TransferFileOverFtp()
         {
-            using Session session = new Session();
-
-            session.Open(sessionOptions);
-
-            using var stream = System.IO.File.OpenRead("D:\\Desktop\\Models\\filament-spool-winder\\Print plate Axis Washers handle.3mf");
-            session.PutFile(stream, "/cache/Print plate Axis Washers handle.3mf");
+            service.TransferFileOverFtp();
 
             return Ok();
         }
 
 
 
-        // http://localhost:5000/api/Print/GetFileThumbnail?filename=/cache/Print%20plate%20Axis%20Washers%20handle.3mf
+        // http://localhost:5000/api/Print/GetFileThumbnail?filename=/cache/ldo%20doors_plate_1.3mf
         public IActionResult GetFileThumbnail(string filename)
         {
-            using (Session session = new Session())
-            {
-                session.Open(sessionOptions);
+            var bytes = service.GetFileThumbnail(filename);
 
-                using (var stream = session.GetFile(filename))
-                {
-                    using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
-                    {
-                        using (var entryStream = archive.GetEntry("Metadata/plate_1.png").Open())
-                        {
-                            MemoryStream memoryStream = new MemoryStream();
-                            entryStream.CopyTo(memoryStream);
+            System.IO.File.WriteAllBytes(@"d:\desktop\preview.png", bytes);
 
-                            return File(memoryStream, "image/png", "preview.png");
-                        }
-                    }
-                }
-            }
+            return File(bytes, "image/png", "preview.png");
         }
 
 

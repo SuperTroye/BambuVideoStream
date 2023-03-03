@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Xml.Linq;
 
-namespace OBSProject
+namespace BambuVideoStream
 {
 
 

@@ -1,4 +1,4 @@
-﻿namespace OBSProject
+﻿namespace BambuVideoStream
 {
     public class BambuSettings
     {

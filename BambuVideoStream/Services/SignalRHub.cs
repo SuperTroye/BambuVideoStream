@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 
-namespace OBSProject
+namespace BambuVideoStream
 {
     public class SignalRHub : Hub
     {

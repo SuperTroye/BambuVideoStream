@@ -14,7 +14,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OBSProject
+namespace BambuVideoStream
 {
     public class MqttClientBackgroundService : BackgroundService
     {
@@ -34,7 +34,7 @@ namespace OBSProject
         InputSettings partFan;
         InputSettings auxFan;
         InputSettings chamberFan;
-
+        InputSettings filament;
 
         private readonly IHubContext<SignalRHub> _hubContext;
 
@@ -70,6 +70,7 @@ namespace OBSProject
             //CreateTextInput("PartFan");
             //CreateTextInput("AuxFan");
             //CreateTextInput("ChamberFan");
+            //CreateTextInput("Filament");
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
@@ -82,8 +83,12 @@ namespace OBSProject
             partFan = obs.GetInputSettings("PartFan");
             auxFan = obs.GetInputSettings("AuxFan");
             chamberFan = obs.GetInputSettings("ChamberFan");
+            filament = obs.GetInputSettings("Filament");
         }
 
+
+
+        string subtask_name;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -135,6 +140,19 @@ namespace OBSProject
                                 UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
                                 UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
                                 UpdateSettingText(chamberFan, $"Cham: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+
+                                var tray = GetCurrentTray(p.print.ams);
+                                if(tray != null)
+                                    UpdateSettingText(filament, tray.tray_type);
+
+                                if (p.print.subtask_name != subtask_name)
+                                {
+                                    subtask_name = p.print.subtask_name;
+
+                                    GetFileImagePreview(subtask_name);
+                                }
+
+
                             }
 
 
@@ -203,6 +221,37 @@ namespace OBSProject
              };
 
             obs.SetSceneItemTransform("Scene", newSceneId, transform);
+        }
+
+
+
+        void GetFileImagePreview(string fileName)
+        {
+            Console.WriteLine("filename is different");
+        }
+
+
+        private Tray GetCurrentTray(Ams msg)
+        {
+            if (!string.IsNullOrEmpty(msg?.tray_now))
+            {
+                foreach (var ams in msg.ams)
+                {
+                    foreach (var tray in ams.tray)
+                    {
+                        if (tray.id == msg.tray_now)
+                        {
+                            if (string.IsNullOrEmpty(tray.tray_type))
+                            {
+                                tray.tray_type = "Empty";
+                            }
+                            return tray;
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
 
 
