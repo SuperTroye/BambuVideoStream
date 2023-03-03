@@ -4,7 +4,7 @@
 
 You will need OBS Studio with all the InputText sources defined. 
 
-instructions for streaming the Bambu webcam with OBS are here: https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera.
+Instructions for streaming the Bambu webcam with OBS are here: https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera.
 
 Those will get updated when a message is received from MQTT. 
 
@@ -16,7 +16,6 @@ When a message is received from MQTT, it is parsed and the text input values are
 
 Here is a sample recorded stream: https://www.youtube.com/watch?v=MW3osyXAUTI
 
-You will need your printer's local IP address, password and serial number to connect to MQTT. 
+You will need your printer's local IP address, password and serial number to connect to MQTT. The password is the access code found on the LCD in the WiFi settings.
 
 Much of this work is derived from this thread: https://community.home-assistant.io/t/bambu-lab-x1-x1c-mqtt/489510.
-
