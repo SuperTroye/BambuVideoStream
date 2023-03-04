@@ -1,11 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 
 namespace BambuVideoStream
 {
@@ -14,15 +8,14 @@ namespace BambuVideoStream
         public static Bitmap CropUnwantedBackground(Bitmap bmpOriginal)
         {
             // Getting The Background Color by checking Corners of Original Image
-
             Color baseColor = bmpOriginal.GetPixel(0, 0);
             int SameCorners = 0;
             bool hasBaseColor = false;
 
             Point[] Corners = new Point[]{new Point(0,0),
-                new Point(0,bmpOriginal.Height-1),
-                new Point(bmpOriginal.Width-1,0),
-                new Point(bmpOriginal.Width-1,bmpOriginal.Height-1)};
+                new Point(0, bmpOriginal.Height-1),
+                new Point(bmpOriginal.Width-1, 0),
+                new Point(bmpOriginal.Width-1, bmpOriginal.Height-1)};
 
             for (int i = 0; i < 4; i++)
             {
@@ -51,7 +44,6 @@ namespace BambuVideoStream
 
             if (hasBaseColor)
             {
-
                 int width = bmpOriginal.Width, height = bmpOriginal.Height;
                 bool UpperLeftPointFounded = false;
                 Point[] bounds = new Point[2];

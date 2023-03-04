@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "OBSProject": {
+    "BambuVideoStream": {
       "commandName": "Project",
       "launchBrowser": false,
       "environmentVariables": {

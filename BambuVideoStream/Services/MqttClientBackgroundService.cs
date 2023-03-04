@@ -8,7 +8,6 @@ using Newtonsoft.Json.Linq;
 using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Types;
 using System;
-using System.Drawing;
 using System.Linq;
 using System.Security.Authentication;
 using System.Text;
@@ -66,19 +65,7 @@ namespace BambuVideoStream
         {
             Console.WriteLine("connected to OBS WebSocket");
 
-            //CreateTextInput("ChamberTemp");
-            //CreateTextInput("BedTemp");
-            //CreateTextInput("NozzleTemp");
-            //CreateTextInput("PercentComplete");
-            //CreateTextInput("Layers");
-            //CreateTextInput("TimeRemaining");
-            //CreateTextInput("SubtaskName");
-            //CreateTextInput("Stage");
-            //CreateTextInput("PartFan");
-            //CreateTextInput("AuxFan");
-            //CreateTextInput("ChamberFan");
-            //CreateTextInput("Filament");
-            //CreateTextInput("PrintWeight");
+            //InitSceneInputs();
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
@@ -156,7 +143,7 @@ namespace BambuVideoStream
 
                                 UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
                                 UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
-                                UpdateSettingText(chamberFan, $"Cham: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+                                UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
 
                                 var tray = GetCurrentTray(p.print.ams);
                                 if (tray != null)
@@ -165,15 +152,12 @@ namespace BambuVideoStream
                                 if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
                                 {
                                     subtask_name = p.print.subtask_name;
-
                                     GetFileImagePreview($"/cache/{subtask_name}.3mf");
 
                                     var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
-
                                     UpdateSettingText(printWeight, $"{weight}g");
                                 }
 
-                                GetTrayColor(p.print.ams);
                             }
 
                             await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
@@ -208,41 +192,11 @@ namespace BambuVideoStream
         }
 
 
-
         void UpdateSettingText(InputSettings setting, string text)
         {
             setting.Settings["text"] = text;
             obs.SetInputSettings(setting);
         }
-
-
-        void CreateTextInput(string inputName)
-        {
-            //var defaults = obs.GetInputDefaultSettings("text_gdiplus_v2");
-
-            JObject itemData = new JObject
-            {
-                { "text", "test" },
-                { "font", new JObject
-                    {
-                        { "face", "Arial" },
-                        { "size", 36 },
-                        { "style", "regular" }
-                    }
-                }
-            };
-
-            var newSceneId = obs.CreateInput("Scene", inputName, "text_gdiplus_v2", itemData, true);
-
-            var transform = new JObject
-            {
-                { "positionX", 500.0f },
-                { "positionY", 500.0f }
-             };
-
-            obs.SetSceneItemTransform("Scene", newSceneId, transform);
-        }
-
 
 
         void GetFileImagePreview(string fileName)
@@ -251,6 +205,7 @@ namespace BambuVideoStream
             try
             {
                 var bytes = ftpService.GetFileThumbnail(fileName);
+
                 System.IO.File.WriteAllBytes(@"d:\desktop\preview.png", bytes);
 
                 var stream = ftpService.GetPrintJobWeight(fileName);
@@ -262,7 +217,7 @@ namespace BambuVideoStream
         }
 
 
-        private Tray GetCurrentTray(Ams msg)
+        Tray GetCurrentTray(Ams msg)
         {
             if (!string.IsNullOrEmpty(msg?.tray_now))
             {
@@ -286,24 +241,141 @@ namespace BambuVideoStream
         }
 
 
-
-        public void GetTrayColor(Ams msg)
+        /// <summary>
+        /// Do this once, and whey they are created then don't run again.
+        /// </summary>
+        void InitSceneInputs()
         {
-            var currentTray = GetCurrentTray(msg);
+            GetSceneItems();
 
-            if (currentTray != null)
+            // ===========================================
+            // BambuStreamSource
+            // ===========================================
+            var bambuStream = new JObject
             {
-                var color = currentTray.tray_color;
+                {"ffmpeg_options", "protocol_whitelist=file,udp,rtp" },
+                {"hw_decode", false },
+                {"input", $"file:{settings.pathToSDP}" },
+                {"is_local_file", false },
+            };
 
-                var col = System.Drawing.ColorTranslator.FromHtml($"#{color}");
+            obs.CreateInput("BambuStream", "BambuStreamSource", "ffmpeg_source", bambuStream, true);
 
-                var ForeColor = col.GetBrightness() > 0.4 ? Color.Black : Color.White;
 
-                //Console.WriteLine(ForeColor);
+
+            // ===========================================
+            // PreviewImage
+            // ===========================================
+            var previewImage = new JObject
+            {
+                {"file", "D:/Desktop/preview.png" },
+                {"linear_alpha", true },
+                {"unload", true }
+            };
+
+            var newSceneId = obs.CreateInput("BambuStream", "PreviewImage", "image_source", previewImage, true);
+
+            var transform = new JObject
+            {
+                { "positionX", 1664 },
+                { "positionY", 0 }
+             };
+
+            obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
+
+
+
+            // ===========================================
+            // ColorSource
+            // ===========================================
+            var colorSource = new JObject
+            {
+                {"color", 4278190080},
+                {"height", 130},
+                {"width", 1920}
+            };
+
+            newSceneId = obs.CreateInput("BambuStream", "ColorSource", "color_source_v3", colorSource, true);
+
+            transform = new JObject
+            {
+                { "positionX", 0 },
+                { "positionY", 950 }
+             };
+
+            obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
+
+
+            CreateTextInput("PrintWeight", 1303, 979);
+            CreateTextInput("ChamberTemp", 56, 1021);
+            CreateTextInput("BedTemp", 342, 1020);
+            CreateTextInput("NozzleTemp", 588, 1020);
+            CreateTextInput("PercentComplete", 1707, 1023);
+            CreateTextInput("Layers", 1687, 978);
+            CreateTextInput("TimeRemaining", 1803, 1023);
+            CreateTextInput("SubtaskName", 960, 978);
+            CreateTextInput("Stage", 962, 1021);
+            CreateTextInput("PartFan", 58, 978);
+            CreateTextInput("AuxFan", 256, 978);
+            CreateTextInput("ChamberFan", 472, 978);
+            CreateTextInput("Filament", 1487, 978);
+        }
+
+
+        void GetSceneItems()
+        {
+            var list = obs.GetInputList();
+
+            foreach (var input in list)
+            {
+                string scene = "BambuStream";
+                string source = input.InputName;
+
+                try
+                {
+                    int itemId = obs.GetSceneItemId(scene, source, 0);
+
+                    var settings = obs.GetInputSettings(source);
+
+                    var transform = obs.GetSceneItemTransform(scene, itemId);
+
+                    Console.WriteLine($"{input.InputKind} {source} {transform.X}, {transform.Y}");
+
+                    //Console.WriteLine($"{JsonSerializer.Serialize(settings)}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
 
 
+
+        void CreateTextInput(string inputName, decimal positionX, decimal positionY)
+        {
+            JObject itemData = new JObject
+            {
+                { "text", "test" },
+                { "font", new JObject
+                    {
+                        { "face", "Arial" },
+                        { "size", 36 },
+                        { "style", "regular" }
+                    }
+                }
+            };
+
+            var newSceneId = obs.CreateInput("BambuStream", inputName, "text_gdiplus_v2", itemData, true);
+
+            var transform = new JObject
+            {
+                { "positionX", positionX },
+                { "positionY", positionY }
+             };
+
+            obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
+        }
 
 
 

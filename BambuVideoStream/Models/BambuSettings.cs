@@ -7,10 +7,6 @@
         public string username { get; set; }
         public string password { get; set; }
         public string serial { get; set; }
-        public string topic 
-        { 
-            get; 
-            set; 
-        }
+        public string pathToSDP { get; set; }
     }
 }

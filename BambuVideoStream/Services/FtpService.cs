@@ -8,6 +8,7 @@ using System;
 using System.Xml.Linq;
 using System.Xml.XPath;
 
+
 namespace BambuVideoStream
 {
     public class FtpService
@@ -67,10 +68,14 @@ namespace BambuVideoStream
 
                         using (var entryStream = archive.GetEntry(previewFileName).Open())
                         {
-                            MemoryStream memoryStream = new MemoryStream();
-                            entryStream.CopyTo(memoryStream);
-
-                            return memoryStream.ToArray();
+                            using (var memoryStream = new MemoryStream())
+                            {
+                                entryStream.CopyTo(memoryStream);
+                                //Bitmap bmp = new Bitmap(entryStream);
+                                //var croppedBitmap = ImageProccesingTools.CropUnwantedBackground(bmp);
+                                //croppedBitmap.Save(memoryStream, ImageFormat.Bmp);
+                                return memoryStream.ToArray();
+                            }
                         }
                     }
                 }
