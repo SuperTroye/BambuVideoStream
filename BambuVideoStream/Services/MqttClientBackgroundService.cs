@@ -26,7 +26,9 @@ namespace BambuVideoStream
         OBSWebsocket obs;
         InputSettings chamberTemp;
         InputSettings bedTemp;
+        InputSettings targetBedTemp;
         InputSettings nozzleTemp;
+        InputSettings targetNozzleTemp;
         InputSettings percentComplete;
         InputSettings layers;
         InputSettings timeRemaining;
@@ -37,6 +39,7 @@ namespace BambuVideoStream
         InputSettings chamberFan;
         InputSettings filament;
         InputSettings printWeight;
+        
 
         private readonly IHubContext<SignalRHub> _hubContext;
         private FtpService ftpService;
@@ -69,7 +72,9 @@ namespace BambuVideoStream
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
+            targetBedTemp = obs.GetInputSettings("TargetBedTemp");
             nozzleTemp = obs.GetInputSettings("NozzleTemp");
+            targetNozzleTemp = obs.GetInputSettings("TargetNozzleTemp");
             percentComplete = obs.GetInputSettings("PercentComplete");
             layers = obs.GetInputSettings("Layers");
             timeRemaining = obs.GetInputSettings("TimeRemaining");
@@ -121,12 +126,21 @@ namespace BambuVideoStream
                         {
                             var p = doc.Deserialize<PrintMessage>();
 
+                            //Console.WriteLine(json);
+
+
+
+
+
                             if (obs.IsConnected)
                             {
-                                UpdateSettingText(chamberTemp, $"Chamber: {p.print.chamber_temper} °C");
-                                UpdateSettingText(bedTemp, $"Bed: {p.print.bed_temper}/{p.print.bed_target_temper} °C");
-                                UpdateSettingText(nozzleTemp, $"Nozzle: {p.print.nozzle_temper}/{p.print.nozzle_target_temper} °C");
+                                UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
+                                UpdateSettingText(bedTemp, $"{p.print.bed_temper} /");
+                                UpdateSettingText(targetBedTemp, $"{p.print.bed_target_temper} °C");
 
+                                UpdateSettingText(nozzleTemp, $"{p.print.nozzle_temper} /");
+                                UpdateSettingText(targetNozzleTemp, $"{p.print.nozzle_target_temper} °C");
+                                
                                 UpdateSettingText(percentComplete, $"{p.print.mc_percent}%");
                                 UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
 
@@ -319,6 +333,8 @@ namespace BambuVideoStream
             CreateTextInput("AuxFan", 256, 978);
             CreateTextInput("ChamberFan", 472, 978);
             CreateTextInput("Filament", 1487, 978);
+            CreateTextInput("TargetNozzleTemp", 770, 1019);
+            CreateTextInput("TargetBedTemp", 474, 1019);
         }
 
 
