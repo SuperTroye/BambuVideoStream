@@ -32,11 +32,11 @@ steps:
 - task: Npm@1
   inputs:
     command: 'install'
-    workingDir: '/ClientApp'
+    workingDir: 'ClientApp'
 
 
 - task: Npm@1
   inputs:
     command: 'custom'
-    workingDir: '/ClientApp'
+    workingDir: 'ClientApp'
     customCommand: 'run build'
