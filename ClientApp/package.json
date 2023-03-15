@@ -24,7 +24,10 @@
 
     "@microsoft/signalr": "7.0.3",
     "primeng": "15.2.0",
-    "primeicons": "6.0.1"
+    "primeicons": "6.0.1",
+
+    "dat.gui": "0.7.9",
+    "three": "0.149.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^15.2.0",

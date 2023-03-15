@@ -31,7 +31,7 @@ export interface Print {
   ipcam: Ipcam;
   layer_num: number;
   lifecycle: string;
-  lights_report?: (LightsReportEntity)[] | null;
+  lights_report?: (LightsReport)[] | null;
   maintain: number;
   mc_percent: number;
   mc_print_error_code: string;
@@ -68,7 +68,7 @@ export interface Print {
 
 
 export interface Ams {
-  ams?: (AmsEntity)[] | null;
+  ams?: (Ams)[] | null;
   ams_exist_bits: string;
   insert_flag: boolean;
   power_on_flag: boolean;
@@ -82,15 +82,15 @@ export interface Ams {
 }
 
 
-export interface AmsEntity {
+export interface Ams {
   humidity: string;
   id: string;
   temp: string;
-  tray?: (TrayEntity)[] | null;
+  tray?: (Tray)[] | null;
 }
 
 
-export interface TrayEntity {
+export interface Tray {
   bed_temp: string;
   bed_temp_type: string;
   drying_temp: string;
@@ -120,7 +120,7 @@ export interface Ipcam {
 }
 
 
-export interface LightsReportEntity {
+export interface LightsReport {
   mode: string;
   node: string;
 }

@@ -22,7 +22,7 @@ namespace BambuVideoStream
         IMqttClient mqttClient;
         BambuSettings settings;
 
-        string ObsWsConnection;
+
         OBSWebsocket obs;
         InputSettings chamberTemp;
         InputSettings bedTemp;
@@ -39,7 +39,7 @@ namespace BambuVideoStream
         InputSettings chamberFan;
         InputSettings filament;
         InputSettings printWeight;
-        
+
 
         private readonly IHubContext<SignalRHub> _hubContext;
         private FtpService ftpService;
@@ -52,7 +52,7 @@ namespace BambuVideoStream
         {
             settings = options.Value;
 
-            ObsWsConnection = config.GetValue<string>("ObsWsConnection");
+            string ObsWsConnection = config.GetValue<string>("ObsWsConnection");
 
             obs = new OBSWebsocket();
             obs.Connected += Obs_Connected;
@@ -68,6 +68,7 @@ namespace BambuVideoStream
         {
             Console.WriteLine("connected to OBS WebSocket");
 
+            //GetSceneItems();
             //InitSceneInputs();
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
@@ -108,101 +109,119 @@ namespace BambuVideoStream
                 })
                 .Build();
 
-            mqttClient.ApplicationMessageReceivedAsync += async e =>
+            mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
+
+            try
             {
-                string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+                var connectResult = await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
 
-                //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("connected to MQTT");
 
-                var doc = JsonDocument.Parse(json);
-
-                var root = doc.RootElement.EnumerateObject().Select(x => x.Name).First();
-
-                switch (root)
-                {
-                    case "print":
-
-                        try
-                        {
-                            var p = doc.Deserialize<PrintMessage>();
-
-                            //Console.WriteLine(json);
-
-
-
-
-
-                            if (obs.IsConnected)
-                            {
-                                UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
-                                UpdateSettingText(bedTemp, $"{p.print.bed_temper} /");
-                                UpdateSettingText(targetBedTemp, $"{p.print.bed_target_temper} °C");
-
-                                UpdateSettingText(nozzleTemp, $"{p.print.nozzle_temper} /");
-                                UpdateSettingText(targetNozzleTemp, $"{p.print.nozzle_target_temper} °C");
-                                
-                                UpdateSettingText(percentComplete, $"{p.print.mc_percent}%");
-                                UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
-
-                                var time = TimeSpan.FromMinutes(p.print.mc_remaining_time);
-                                string timeFormatted = "";
-                                if (time.TotalMinutes > 59)
-                                    timeFormatted = string.Format("-{0}h{1}m", (int)time.TotalHours, time.Minutes);
-                                else
-                                    timeFormatted = string.Format("-{0}m", time.Minutes);
-
-                                UpdateSettingText(timeRemaining, timeFormatted);
-                                UpdateSettingText(subtaskName, $"{p.print.subtask_name}");
-                                UpdateSettingText(stage, $"{p.print.current_stage}");
-
-                                UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
-                                UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
-                                UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
-
-                                var tray = GetCurrentTray(p.print.ams);
-                                if (tray != null)
-                                    UpdateSettingText(filament, tray.tray_type);
-
-                                if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
-                                {
-                                    subtask_name = p.print.subtask_name;
-                                    GetFileImagePreview($"/cache/{subtask_name}.3mf");
-
-                                    var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
-                                    UpdateSettingText(printWeight, $"{weight}g");
-                                }
-
-                            }
-
-                            await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message);
-                        }
-
-                        break;
-
-                    case "mc_print":
-
-                        var mc_print = doc.Deserialize<McPrintMessage>();
-
-                        // not sure how to deserialize this message. maybe later.
-                        //Console.WriteLine($"sequence_id: {mc_print.mc_print.sequence_id}");
-
-                        break;
-                }
-            };
-
-            await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
-
-            var mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
+                var mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(f =>
                 {
                     f.WithTopic($"device/{settings.serial}/report");
                 }).Build();
 
-            await mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+                await mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+
+        async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
+        {
+            string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+
+            var doc = JsonDocument.Parse(json);
+
+            var root = doc.RootElement.EnumerateObject().Select(x => x.Name).First();
+
+            switch (root)
+            {
+                case "print":
+
+                    try
+                    {
+                        System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + ", " + Environment.NewLine);
+
+                        var p = doc.Deserialize<PrintMessage>();
+
+                        //Console.WriteLine(json);
+
+                        if (obs.IsConnected)
+                        {
+                            UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
+                            UpdateSettingText(bedTemp, $"{p.print.bed_temper}");
+
+                            string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
+                            if (p.print.bed_target_temper == 0)
+                                targetBedTempStr = "";
+
+                            UpdateSettingText(targetBedTemp, targetBedTempStr);
+                            UpdateSettingText(nozzleTemp, $"{p.print.nozzle_temper}");
+
+                            string targetNozzleTempStr = $" / {p.print.nozzle_target_temper} °C";
+                            if (p.print.nozzle_target_temper == 0)
+                                targetNozzleTempStr = "";
+
+                            UpdateSettingText(targetNozzleTemp, targetNozzleTempStr);
+
+                            UpdateSettingText(percentComplete, $"{p.print.mc_percent}%");
+                            UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
+
+                            var time = TimeSpan.FromMinutes(p.print.mc_remaining_time);
+                            string timeFormatted = "";
+                            if (time.TotalMinutes > 59)
+                                timeFormatted = string.Format("-{0}h{1}m", (int)time.TotalHours, time.Minutes);
+                            else
+                                timeFormatted = string.Format("-{0}m", time.Minutes);
+
+                            UpdateSettingText(timeRemaining, timeFormatted);
+                            UpdateSettingText(subtaskName, $"{p.print.subtask_name}");
+                            UpdateSettingText(stage, $"{p.print.current_stage}");
+
+                            UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
+                            UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
+                            UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+
+                            var tray = GetCurrentTray(p.print.ams);
+                            if (tray != null)
+                                UpdateSettingText(filament, tray.tray_type);
+
+                            if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
+                            {
+                                subtask_name = p.print.subtask_name;
+                                GetFileImagePreview($"/cache/{subtask_name}.3mf");
+
+                                var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
+                                UpdateSettingText(printWeight, $"{weight}g");
+                            }
+
+                            CheckStreamStatus(p);
+                        }
+
+                        await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
+
+                    break;
+
+                case "mc_print":
+
+                    var mc_print = doc.Deserialize<McPrintMessage>();
+
+                    // not sure how to deserialize this message. maybe later.
+                    //Console.WriteLine($"sequence_id: {mc_print.mc_print.sequence_id}");
+
+                    break;
+            }
         }
 
 
@@ -231,6 +250,7 @@ namespace BambuVideoStream
         }
 
 
+
         Tray GetCurrentTray(Ams msg)
         {
             if (!string.IsNullOrEmpty(msg?.tray_now))
@@ -253,6 +273,24 @@ namespace BambuVideoStream
 
             return null;
         }
+
+
+        /// <summary>
+        /// Checks the status of the obs stream and stops it if the print is complete
+        /// </summary>
+        /// <param name="p">The PrintMessage from MQTT</param>
+        void CheckStreamStatus(PrintMessage p)
+        {
+            var status = obs.GetStreamStatus();
+
+            var percent = p.print.mc_percent;
+
+            if (percent == 100 && status.IsActive)
+            {
+                obs.StopStream();
+            }
+        }
+
 
 
         /// <summary>
@@ -323,7 +361,9 @@ namespace BambuVideoStream
             CreateTextInput("PrintWeight", 1303, 979);
             CreateTextInput("ChamberTemp", 56, 1021);
             CreateTextInput("BedTemp", 342, 1020);
+            CreateTextInput("TargetBedTemp", 474, 1019);
             CreateTextInput("NozzleTemp", 588, 1020);
+            CreateTextInput("TargetNozzleTemp", 770, 1019);
             CreateTextInput("PercentComplete", 1707, 1023);
             CreateTextInput("Layers", 1687, 978);
             CreateTextInput("TimeRemaining", 1803, 1023);
@@ -333,8 +373,6 @@ namespace BambuVideoStream
             CreateTextInput("AuxFan", 256, 978);
             CreateTextInput("ChamberFan", 472, 978);
             CreateTextInput("Filament", 1487, 978);
-            CreateTextInput("TargetNozzleTemp", 770, 1019);
-            CreateTextInput("TargetBedTemp", 474, 1019);
         }
 
 
