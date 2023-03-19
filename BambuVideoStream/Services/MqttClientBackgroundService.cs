@@ -25,10 +25,16 @@ namespace BambuVideoStream
 
         OBSWebsocket obs;
         InputSettings chamberTemp;
+
         InputSettings bedTemp;
         InputSettings targetBedTemp;
+
         InputSettings nozzleTemp;
         InputSettings targetNozzleTemp;
+
+        InputSettings nozzleTempIcon;
+        InputSettings bedTempIcon;
+
         InputSettings percentComplete;
         InputSettings layers;
         InputSettings timeRemaining;
@@ -39,6 +45,10 @@ namespace BambuVideoStream
         InputSettings chamberFan;
         InputSettings filament;
         InputSettings printWeight;
+
+        InputSettings partFanIcon;
+        InputSettings auxFanIcon;
+        InputSettings chamberFanIcon;
 
 
         private readonly IHubContext<SignalRHub> _hubContext;
@@ -73,6 +83,10 @@ namespace BambuVideoStream
 
             chamberTemp = obs.GetInputSettings("ChamberTemp");
             bedTemp = obs.GetInputSettings("BedTemp");
+
+            nozzleTempIcon = obs.GetInputSettings("NozzleTempIcon");
+            bedTempIcon = obs.GetInputSettings("BedTempIcon");
+
             targetBedTemp = obs.GetInputSettings("TargetBedTemp");
             nozzleTemp = obs.GetInputSettings("NozzleTemp");
             targetNozzleTemp = obs.GetInputSettings("TargetNozzleTemp");
@@ -86,6 +100,9 @@ namespace BambuVideoStream
             chamberFan = obs.GetInputSettings("ChamberFan");
             filament = obs.GetInputSettings("Filament");
             printWeight = obs.GetInputSettings("PrintWeight");
+            partFanIcon = obs.GetInputSettings("PartFanIcon");
+            auxFanIcon = obs.GetInputSettings("AuxFanIcon");
+            chamberFanIcon = obs.GetInputSettings("ChamberFanIcon");
         }
 
 
@@ -134,19 +151,19 @@ namespace BambuVideoStream
 
         async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
-            string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-
-            var doc = JsonDocument.Parse(json);
-
-            var root = doc.RootElement.EnumerateObject().Select(x => x.Name).First();
-
-            switch (root)
+            try
             {
-                case "print":
+                string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
 
-                    try
-                    {
-                        System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + ", " + Environment.NewLine);
+                var doc = JsonDocument.Parse(json);
+
+                var root = doc.RootElement.EnumerateObject().Select(x => x.Name).First();
+
+                switch (root)
+                {
+                    case "print":
+
+                        //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + ", " + Environment.NewLine);
 
                         var p = doc.Deserialize<PrintMessage>();
 
@@ -156,6 +173,9 @@ namespace BambuVideoStream
                         {
                             UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
                             UpdateSettingText(bedTemp, $"{p.print.bed_temper}");
+
+                            UpdateBedTempIconSetting(bedTempIcon, p.print.bed_target_temper);
+                            UpdateNozzleTempIconSetting(nozzleTempIcon, p.print.nozzle_target_temper);
 
                             string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
                             if (p.print.bed_target_temper == 0)
@@ -188,6 +208,10 @@ namespace BambuVideoStream
                             UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
                             UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
 
+                            UpdateFanIconSetting(partFanIcon, p.print.cooling_fan_speed);
+                            UpdateFanIconSetting(auxFanIcon, p.print.big_fan1_speed);
+                            UpdateFanIconSetting(chamberFanIcon, p.print.big_fan2_speed);
+
                             var tray = GetCurrentTray(p.print.ams);
                             if (tray != null)
                                 UpdateSettingText(filament, tray.tray_type);
@@ -205,22 +229,22 @@ namespace BambuVideoStream
                         }
 
                         await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
 
-                    break;
+                        break;
 
-                case "mc_print":
+                    case "mc_print":
 
-                    var mc_print = doc.Deserialize<McPrintMessage>();
+                        var mc_print = doc.Deserialize<McPrintMessage>();
 
-                    // not sure how to deserialize this message. maybe later.
-                    //Console.WriteLine($"sequence_id: {mc_print.mc_print.sequence_id}");
+                        // not sure how to deserialize this message. maybe later.
+                        //Console.WriteLine($"sequence_id: {mc_print.mc_print.sequence_id}");
 
-                    break;
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
             }
         }
 
@@ -228,6 +252,40 @@ namespace BambuVideoStream
         void UpdateSettingText(InputSettings setting, string text)
         {
             setting.Settings["text"] = text;
+            obs.SetInputSettings(setting);
+        }
+
+
+
+        void UpdateBedTempIconSetting(InputSettings setting, double value)
+        {
+            if (value == 0)
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_bed_temp.png";
+            else
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_bed_temp_active.png";
+
+            obs.SetInputSettings(setting);
+        }
+
+
+        void UpdateNozzleTempIconSetting(InputSettings setting, double value)
+        {
+            if (value == 0)
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp.png";
+            else
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp_active.png";
+
+            obs.SetInputSettings(setting);
+        }
+
+
+        void UpdateFanIconSetting(InputSettings setting, string value)
+        {
+            if (value == "0")
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/fan_off.png";
+            else
+                setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/fan_icon.png";
+
             obs.SetInputSettings(setting);
         }
 
