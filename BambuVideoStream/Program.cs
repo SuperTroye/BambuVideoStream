@@ -42,5 +42,4 @@ if (!app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.MapControllers();
-app.MapHub<SignalRHub>("/signalr");
 app.Run();
