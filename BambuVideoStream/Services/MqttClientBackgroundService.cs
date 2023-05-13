@@ -53,12 +53,11 @@ public class MqttClientBackgroundService : BackgroundService
     InputSettings chamberFanIcon;
 
 
-    private readonly IHubContext<SignalRHub> _hubContext;
+
     private FtpService ftpService;
 
     public MqttClientBackgroundService(
         IConfiguration config,
-        IHubContext<SignalRHub> hubContext,
         FtpService ftpService,
         IOptions<BambuSettings> options)
     {
@@ -70,8 +69,6 @@ public class MqttClientBackgroundService : BackgroundService
         obs.Connected += Obs_Connected;
         obs.ConnectAsync(ObsWsConnection, "");
 
-
-        _hubContext = hubContext;
         this.ftpService = ftpService;
     }
 
@@ -227,8 +224,6 @@ public class MqttClientBackgroundService : BackgroundService
 
                         CheckStreamStatus(p);
                     }
-
-                    await _hubContext.Clients.All.SendAsync("SendPrintMessage", p);
 
                     break;
 
