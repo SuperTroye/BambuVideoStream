@@ -346,7 +346,7 @@ public class MqttClientBackgroundService : BackgroundService
 
 
     /// <summary>
-    /// Do this once, and whey they are created then don't run again.
+    /// Do this once, and when they are created then don't run again.
     /// </summary>
     void InitSceneInputs()
     {

@@ -119,19 +119,5 @@ namespace BambuVideoStream
             return null;
         }
 
-
-
-
-
-        public void TransferFileOverFtp()
-        {
-            using Session session = new Session();
-
-            session.Open(sessionOptions);
-
-            using var stream = System.IO.File.OpenRead("D:\\Desktop\\Models\\filament-spool-winder\\Print plate Axis Washers handle.3mf");
-            session.PutFile(stream, "/cache/Print plate Axis Washers handle.3mf");
-        }
-
     }
 }
