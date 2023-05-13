@@ -5,8 +5,6 @@ VisualStudioVersion = 17.4.33403.182
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BambuVideoStream", "BambuVideoStream\BambuVideoStream.csproj", "{DAF2D62C-8BD7-4826-9A2A-A69133E8BAE4}"
 EndProject
-Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "ClientApp", "ClientApp\ClientApp.esproj", "{F898FB46-36A0-4575-B759-C524FD9205A6}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,12 +15,6 @@ Global
 		{DAF2D62C-8BD7-4826-9A2A-A69133E8BAE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DAF2D62C-8BD7-4826-9A2A-A69133E8BAE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DAF2D62C-8BD7-4826-9A2A-A69133E8BAE4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F898FB46-36A0-4575-B759-C524FD9205A6}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
