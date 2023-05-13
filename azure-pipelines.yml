@@ -27,16 +27,3 @@ steps:
   inputs:
     command: 'publish'
     publishWebProjects: true
-
-
-- task: Npm@1
-  inputs:
-    command: 'install'
-    workingDir: 'ClientApp'
-
-
-- task: Npm@1
-  inputs:
-    command: 'custom'
-    workingDir: 'ClientApp'
-    customCommand: 'run build'
