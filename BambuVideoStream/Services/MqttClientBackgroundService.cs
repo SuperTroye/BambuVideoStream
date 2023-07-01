@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MQTTnet;
@@ -24,19 +23,14 @@ public class MqttClientBackgroundService : BackgroundService
     IMqttClient mqttClient;
     BambuSettings settings;
 
-
     OBSWebsocket obs;
     InputSettings chamberTemp;
-
     InputSettings bedTemp;
     InputSettings targetBedTemp;
-
     InputSettings nozzleTemp;
     InputSettings targetNozzleTemp;
-
     InputSettings nozzleTempIcon;
     InputSettings bedTempIcon;
-
     InputSettings percentComplete;
     InputSettings layers;
     InputSettings timeRemaining;
@@ -47,12 +41,9 @@ public class MqttClientBackgroundService : BackgroundService
     InputSettings chamberFan;
     InputSettings filament;
     InputSettings printWeight;
-
     InputSettings partFanIcon;
     InputSettings auxFanIcon;
     InputSettings chamberFanIcon;
-
-
 
     private FtpService ftpService;
 
@@ -148,7 +139,7 @@ public class MqttClientBackgroundService : BackgroundService
     }
 
 
-    async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
+    Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
     {
         try
         {
@@ -241,6 +232,8 @@ public class MqttClientBackgroundService : BackgroundService
         {
             Console.WriteLine(ex.Message);
         }
+
+        return Task.CompletedTask;
     }
 
 
