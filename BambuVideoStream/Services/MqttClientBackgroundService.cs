@@ -68,7 +68,7 @@ public class MqttClientBackgroundService : BackgroundService
     {
         Console.WriteLine("connected to OBS WebSocket");
 
-        GetSceneItems();
+        //GetSceneItems();
         //InitSceneInputs();
 
         chamberTemp = obs.GetInputSettings("ChamberTemp");
