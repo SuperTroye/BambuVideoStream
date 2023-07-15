@@ -68,7 +68,7 @@ public class MqttClientBackgroundService : BackgroundService
     {
         Console.WriteLine("connected to OBS WebSocket");
 
-        //GetSceneItems();
+        GetSceneItems();
         //InitSceneInputs();
 
         chamberTemp = obs.GetInputSettings("ChamberTemp");
@@ -143,7 +143,7 @@ public class MqttClientBackgroundService : BackgroundService
     {
         try
         {
-            string json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+            string json = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment);
 
             var doc = JsonDocument.Parse(json);
 
@@ -358,30 +358,6 @@ public class MqttClientBackgroundService : BackgroundService
 
         obs.CreateInput("BambuStream", "BambuStreamSource", "ffmpeg_source", bambuStream, true);
 
-
-
-        // ===========================================
-        // PreviewImage
-        // ===========================================
-        var previewImage = new JObject
-            {
-                {"file", "D:/Desktop/preview.png" },
-                {"linear_alpha", true },
-                {"unload", true }
-            };
-
-        var newSceneId = obs.CreateInput("BambuStream", "PreviewImage", "image_source", previewImage, true);
-
-        var transform = new JObject
-            {
-                { "positionX", 1664 },
-                { "positionY", 0 }
-             };
-
-        obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
-
-
-
         // ===========================================
         // ColorSource
         // ===========================================
@@ -392,32 +368,44 @@ public class MqttClientBackgroundService : BackgroundService
                 {"width", 1920}
             };
 
-        newSceneId = obs.CreateInput("BambuStream", "ColorSource", "color_source_v3", colorSource, true);
+        var newSceneId = obs.CreateInput("BambuStream", "ColorSource", "color_source_v3", colorSource, true);
 
-        transform = new JObject
+        var transform = new JObject
             {
                 { "positionX", 0 },
-                { "positionY", 950 }
+                { "positionY", 949 }
              };
 
         obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
 
+        // ============================================
+        // Text Inputs
+        // ============================================
+        CreateTextInput("TargetBedTemp", 331, 1024);
+        CreateTextInput("PrintWeight", 1303, 1021);
+        CreateTextInput("ChamberTemp", 63, 1025);
+        CreateTextInput("BedTemp", 295, 1024);
+        CreateTextInput("NozzleTemp", 544, 1025);
+        CreateTextInput("PercentComplete", 1598, 1023);
+        CreateTextInput("Layers", 1681, 972);
+        CreateTextInput("TimeRemaining", 1797, 1040);
+        CreateTextInput("SubtaskName", 879, 986);
+        CreateTextInput("Stage", 888, 1046);
+        CreateTextInput("PartFan", 58, 971);
+        CreateTextInput("AuxFan", 298, 971);
+        CreateTextInput("ChamberFan", 540, 971);
+        CreateTextInput("Filament", 1437, 1022);
+        CreateTextInput("TargetNozzleTemp", 597, 1025);
 
-        CreateTextInput("PrintWeight", 1303, 979);
-        CreateTextInput("ChamberTemp", 56, 1021);
-        CreateTextInput("BedTemp", 342, 1020);
-        CreateTextInput("TargetBedTemp", 474, 1019);
-        CreateTextInput("NozzleTemp", 588, 1020);
-        CreateTextInput("TargetNozzleTemp", 770, 1019);
-        CreateTextInput("PercentComplete", 1707, 1023);
-        CreateTextInput("Layers", 1687, 978);
-        CreateTextInput("TimeRemaining", 1803, 1023);
-        CreateTextInput("SubtaskName", 960, 978);
-        CreateTextInput("Stage", 962, 1021);
-        CreateTextInput("PartFan", 58, 978);
-        CreateTextInput("AuxFan", 256, 978);
-        CreateTextInput("ChamberFan", 472, 978);
-        CreateTextInput("Filament", 1487, 978);
+        CreateImageInput("AuxFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 248, 969);
+        CreateImageInput("NozzleTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp.png", 492, 1025);
+        CreateImageInput("BedTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_bed_temp.png", 243, 1025);
+        CreateImageInput("ChamberTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_frame_temp.png", 9, 1021);
+        CreateImageInput("TimeIcon", @"D:/Projects/BambuVideoStream/Images/monitor_tasklist_time.png", 1732, 1016);
+        CreateImageInput("FilamentIcon", @"D:/Projects/BambuVideoStream/Images/filament.png", 1254, 1021);
+        CreateImageInput("ChamberFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 494, 968);
+        CreateImageInput("PartFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 10, 967);
+        CreateImageInput("PreviewImage", @"D:/Projects/BambuVideoStream/Images/preview.png", 1667, 105);
     }
 
 
@@ -433,14 +421,8 @@ public class MqttClientBackgroundService : BackgroundService
             try
             {
                 int itemId = obs.GetSceneItemId(scene, source, 0);
-
-                var settings = obs.GetInputSettings(source);
-
                 var transform = obs.GetSceneItemTransform(scene, itemId);
-
                 Console.WriteLine($"{input.InputKind} {source} {transform.X}, {transform.Y}");
-
-                //Console.WriteLine($"{JsonSerializer.Serialize(settings)}");
             }
             catch (Exception ex)
             {
@@ -448,7 +430,6 @@ public class MqttClientBackgroundService : BackgroundService
             }
         }
     }
-
 
 
     void CreateTextInput(string inputName, decimal positionX, decimal positionY)
@@ -476,6 +457,26 @@ public class MqttClientBackgroundService : BackgroundService
         obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
     }
 
+
+    void CreateImageInput(string inputName, string icon, decimal positionX, decimal positionY)
+    {
+        var imageInput = new JObject
+            {
+                {"file", icon },
+                {"linear_alpha", true },
+                {"unload", true }
+            };
+
+        var newSceneId = obs.CreateInput("BambuStream", inputName, "image_source", imageInput, true);
+
+        var transform = new JObject
+            {
+                { "positionX", positionX },
+                { "positionY", positionY }
+             };
+
+        obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
+    }
 
 
     public override async Task StopAsync(CancellationToken stoppingToken)
