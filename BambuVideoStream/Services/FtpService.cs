@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.IO;
 using WinSCP;
 using Microsoft.Extensions.Options;

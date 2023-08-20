@@ -1,20 +1,17 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using BambuVideoStream;
+using Microsoft.Extensions.Hosting;
 
 
-var builder = WebApplication.CreateBuilder(args);
+IHost host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices((context, services) =>
+    {
+        services.Configure<BambuSettings>(context.Configuration.GetSection(nameof(BambuSettings)));
+        services.AddTransient<FtpService>();
+        services.AddHostedService<MqttClientBackgroundService>();
+        services.AddLogging(options => options.AddConsole());
+    })
+    .Build();
 
-builder.Services.AddLogging(options => options.AddConsole());
-
-// Add services to the container
-builder.Services.Configure<BambuSettings>(builder.Configuration.GetSection(nameof(BambuSettings)));
-
-builder.Services.AddTransient<FtpService>();
-builder.Services.AddHostedService<MqttClientBackgroundService>();
-
-var app = builder.Build();
-
-
-app.Run();
+await host.RunAsync();
