@@ -2,9 +2,8 @@
   "profiles": {
     "BambuVideoStream": {
       "commandName": "Project",
-      "launchBrowser": false,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "DOTNET_ENVIRONMENT": "Development"
       },
       "applicationUrl": "http://localhost:5000"
     }
