@@ -20,6 +20,8 @@ namespace BambuVideoStream;
 
 public class MqttClientBackgroundService : BackgroundService
 {
+    static readonly string ImageContentRootPath = Path.Combine(AppContext.BaseDirectory, "Images");
+
     IMqttClient mqttClient;
     BambuSettings settings;
 
@@ -54,11 +56,12 @@ public class MqttClientBackgroundService : BackgroundService
     {
         settings = options.Value;
 
-        string ObsWsConnection = config.GetValue<string>("ObsWsConnection");
+        string ObsWsConnection = config.GetValue<string>("ObsSettings:WsConnection");
+        string ObsPassword = config.GetValue<string>("ObsSettings:Password");
 
         obs = new OBSWebsocket();
         obs.Connected += Obs_Connected;
-        obs.ConnectAsync(ObsWsConnection, "");
+        obs.ConnectAsync(ObsWsConnection, ObsPassword ?? string.Empty);
 
         this.ftpService = ftpService;
     }
@@ -247,9 +250,9 @@ public class MqttClientBackgroundService : BackgroundService
     void UpdateBedTempIconSetting(InputSettings setting, double value)
     {
         if (value == 0)
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_bed_temp.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_bed_temp.png");
         else
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_bed_temp_active.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_bed_temp_active.png");
 
         obs.SetInputSettings(setting);
     }
@@ -258,9 +261,9 @@ public class MqttClientBackgroundService : BackgroundService
     void UpdateNozzleTempIconSetting(InputSettings setting, double value)
     {
         if (value == 0)
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png");
         else
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp_active.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_nozzle_temp_active.png");
 
         obs.SetInputSettings(setting);
     }
@@ -269,9 +272,9 @@ public class MqttClientBackgroundService : BackgroundService
     void UpdateFanIconSetting(InputSettings setting, string value)
     {
         if (value == "0")
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/fan_off.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "fan_off.png");
         else
-            setting.Settings["file"] = "D:/Projects/BambuVideoStream/Images/fan_icon.png";
+            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "fan_icon.png");
 
         obs.SetInputSettings(setting);
     }
@@ -284,7 +287,7 @@ public class MqttClientBackgroundService : BackgroundService
         {
             var bytes = ftpService.GetFileThumbnail(fileName);
 
-            File.WriteAllBytes(@"D:\Projects\BambuVideoStream\Images\preview.png", bytes);
+            File.WriteAllBytes(Path.Combine(ImageContentRootPath, "preview.png"), bytes);
 
             var stream = ftpService.GetPrintJobWeight(fileName);
         }
@@ -397,15 +400,15 @@ public class MqttClientBackgroundService : BackgroundService
         CreateTextInput("Filament", 1437, 1022);
         CreateTextInput("TargetNozzleTemp", 597, 1025);
 
-        CreateImageInput("AuxFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 248, 969);
-        CreateImageInput("NozzleTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_nozzle_temp.png", 492, 1025);
-        CreateImageInput("BedTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_bed_temp.png", 243, 1025);
-        CreateImageInput("ChamberTempIcon", @"D:/Projects/BambuVideoStream/Images/monitor_frame_temp.png", 9, 1021);
-        CreateImageInput("TimeIcon", @"D:/Projects/BambuVideoStream/Images/monitor_tasklist_time.png", 1732, 1016);
-        CreateImageInput("FilamentIcon", @"D:/Projects/BambuVideoStream/Images/filament.png", 1254, 1021);
-        CreateImageInput("ChamberFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 494, 968);
-        CreateImageInput("PartFanIcon", @"D:/Projects/BambuVideoStream/Images/fan_off.png", 10, 967);
-        CreateImageInput("PreviewImage", @"D:/Projects/BambuVideoStream/Images/preview.png", 1667, 105);
+        CreateImageInput("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 248, 969);
+        CreateImageInput("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 492, 1025);
+        CreateImageInput("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 243, 1025);
+        CreateImageInput("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021);
+        CreateImageInput("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1732, 1016);
+        CreateImageInput("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1254, 1021);
+        CreateImageInput("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 494, 968);
+        CreateImageInput("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 967);
+        CreateImageInput("PreviewImage", Path.Combine(ImageContentRootPath, "preview.png"), 1667, 105);
     }
 
 
@@ -461,19 +464,19 @@ public class MqttClientBackgroundService : BackgroundService
     void CreateImageInput(string inputName, string icon, decimal positionX, decimal positionY)
     {
         var imageInput = new JObject
-            {
-                {"file", icon },
-                {"linear_alpha", true },
-                {"unload", true }
-            };
+        {
+            {"file", icon },
+            {"linear_alpha", true },
+            {"unload", true }
+        };
 
         var newSceneId = obs.CreateInput("BambuStream", inputName, "image_source", imageInput, true);
 
         var transform = new JObject
-            {
-                { "positionX", positionX },
-                { "positionY", positionY }
-             };
+        {
+            { "positionX", positionX },
+            { "positionY", positionY }
+        };
 
         obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
     }
