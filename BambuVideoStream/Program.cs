@@ -25,20 +25,9 @@ builder.Services.Configure<BambuSettings>(builder.Configuration.GetSection(nameo
 builder.Services.Configure<OBSSettings>(builder.Configuration.GetSection(nameof(OBSSettings)));
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection(nameof(AppSettings)));
 builder.Services.AddTransient<FtpService>();
+builder.Services.AddTransient<MyOBSWebsocket>();
 builder.Services.AddHostedService<MqttClientBackgroundService>();
 
 var host = builder.Build();
 
-LoggerFactory = host.Services.GetRequiredService<ILoggerFactory>();
-
 await host.RunAsync();
-
-
-#region Additional code for Program.cs
-
-public partial class Program
-{
-    public static ILoggerFactory LoggerFactory { get; private set; }
-}
-
-#endregion

@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using BambuVideoStream.Extensions;
 using BambuVideoStream.Models;
 using BambuVideoStream.Models.Mqtt;
 using Microsoft.Extensions.Hosting;
@@ -16,7 +15,6 @@ using Microsoft.Extensions.Options;
 using MQTTnet;
 using MQTTnet.Client;
 using Newtonsoft.Json;
-using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Communication;
 using OBSWebsocketDotNet.Types;
 
@@ -36,7 +34,7 @@ public class MqttClientBackgroundService : BackgroundService
     readonly IMqttClient mqttClient;
     readonly MqttClientOptions mqttClientOptions;
     readonly MqttClientSubscribeOptions mqttSubscribeOptions;
-    readonly OBSWebsocket obs;
+    readonly MyOBSWebsocket obs;
     readonly FtpService ftpService;
     readonly ConcurrentQueue<Action> queuedOperations = new();
 
@@ -70,6 +68,7 @@ public class MqttClientBackgroundService : BackgroundService
 
     public MqttClientBackgroundService(
         FtpService ftpService,
+        MyOBSWebsocket obsWebsocket,
         IOptions<BambuSettings> bambuOptions,
         IOptions<OBSSettings> obsOptions,
         IOptions<AppSettings> appOptions,
@@ -80,7 +79,7 @@ public class MqttClientBackgroundService : BackgroundService
         obsSettings = obsOptions.Value;
         appSettings = appOptions.Value;
 
-        obs = new OBSWebsocket();
+        obs = obsWebsocket;
         obs.Connected += Obs_Connected;
         obs.Disconnected += Obs_Disconnected;
 
@@ -160,8 +159,8 @@ public class MqttClientBackgroundService : BackgroundService
             // ===========================================
             await obs.EnsureVideoSettingsAsync();
             await obs.EnsureBambuSceneAsync();
-            await obs.EnsureBambuStreamSourceAsync(bambuSettings, obsSettings);
-            await obs.EnsureColorSourceAsync(obsSettings);
+            await obs.EnsureBambuStreamSourceAsync();
+            await obs.EnsureColorSourceAsync();
 
             // Z-index for inputs starts at 2 (will be incremented below), because the stream and color source are at 0 and 1
             int z_index = 2;
@@ -169,35 +168,35 @@ public class MqttClientBackgroundService : BackgroundService
             // ===========================================
             // Text sources
             // ===========================================
-            chamberTemp = await obs.EnsureTextInputSettingsAsync("ChamberTemp", 71, 1029, z_index++, obsSettings);
-            bedTemp = await obs.EnsureTextInputSettingsAsync("BedTemp", 277, 1029, z_index++, obsSettings);
-            targetBedTemp = await obs.EnsureTextInputSettingsAsync("TargetBedTemp", 313, 1029, z_index++, obsSettings);
-            nozzleTemp = await obs.EnsureTextInputSettingsAsync("NozzleTemp", 527, 1028, z_index++, obsSettings);
-            targetNozzleTemp = await obs.EnsureTextInputSettingsAsync("TargetNozzleTemp", 580, 1028, z_index++, obsSettings);
-            percentComplete = await obs.EnsureTextInputSettingsAsync("PercentComplete", 1510, 1022, z_index++, obsSettings);
-            layers = await obs.EnsureTextInputSettingsAsync("Layers", 1652, 972, z_index++, obsSettings);
-            timeRemaining = await obs.EnsureTextInputSettingsAsync("TimeRemaining", 1791, 1024, z_index++, obsSettings);
-            subtaskName = await obs.EnsureTextInputSettingsAsync("SubtaskName", 838, 971, z_index++, obsSettings);
-            stage = await obs.EnsureTextInputSettingsAsync("Stage", 842, 1019, z_index++, obsSettings);
-            partFan = await obs.EnsureTextInputSettingsAsync("PartFan", 58, 971, z_index++, obsSettings);
-            auxFan = await obs.EnsureTextInputSettingsAsync("AuxFan", 277, 971, z_index++, obsSettings);
-            chamberFan = await obs.EnsureTextInputSettingsAsync("ChamberFan", 521, 971, z_index++, obsSettings);
-            filament = await obs.EnsureTextInputSettingsAsync("Filament", 1437, 1022, z_index++, obsSettings);
-            printWeight = await obs.EnsureTextInputSettingsAsync("PrintWeight", 1303, 1021, z_index++, obsSettings);
+            chamberTemp = await obs.EnsureTextInputSettingsAsync("ChamberTemp", 71, 1029, z_index++);
+            bedTemp = await obs.EnsureTextInputSettingsAsync("BedTemp", 277, 1029, z_index++);
+            targetBedTemp = await obs.EnsureTextInputSettingsAsync("TargetBedTemp", 313, 1029, z_index++);
+            nozzleTemp = await obs.EnsureTextInputSettingsAsync("NozzleTemp", 527, 1028, z_index++);
+            targetNozzleTemp = await obs.EnsureTextInputSettingsAsync("TargetNozzleTemp", 580, 1028, z_index++);
+            percentComplete = await obs.EnsureTextInputSettingsAsync("PercentComplete", 1510, 1022, z_index++);
+            layers = await obs.EnsureTextInputSettingsAsync("Layers", 1652, 972, z_index++);
+            timeRemaining = await obs.EnsureTextInputSettingsAsync("TimeRemaining", 1791, 1024, z_index++);
+            subtaskName = await obs.EnsureTextInputSettingsAsync("SubtaskName", 838, 971, z_index++);
+            stage = await obs.EnsureTextInputSettingsAsync("Stage", 842, 1019, z_index++);
+            partFan = await obs.EnsureTextInputSettingsAsync("PartFan", 58, 971, z_index++);
+            auxFan = await obs.EnsureTextInputSettingsAsync("AuxFan", 277, 971, z_index++);
+            chamberFan = await obs.EnsureTextInputSettingsAsync("ChamberFan", 521, 971, z_index++);
+            filament = await obs.EnsureTextInputSettingsAsync("Filament", 1437, 1022, z_index++);
+            printWeight = await obs.EnsureTextInputSettingsAsync("PrintWeight", 1303, 1021, z_index++);
 
             // ===========================================
             // Image sources
             // ===========================================
-            nozzleTempIcon = await obs.EnsureImageInputSettingsAsync("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 471, 1025, 1m, z_index++, obsSettings);
-            bedTempIcon = await obs.EnsureImageInputSettingsAsync("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 222, 1025, 1m, z_index++, obsSettings);
-            partFanIcon = await obs.EnsureImageInputSettingsAsync("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 969, 1m + (2m / 3m), z_index++, obsSettings);
-            auxFanIcon = await obs.EnsureImageInputSettingsAsync("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 227, 969, 1m + (2m / 3m), z_index++, obsSettings);
-            chamberFanIcon = await obs.EnsureImageInputSettingsAsync("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 475, 969, 1m + (2m / 3m), z_index++, obsSettings);
-            previewImage = await obs.EnsureImageInputSettingsAsync("PreviewImage", Path.Combine(ImageContentRootPath, "preview_placeholder.png"), 1667, 0, 0.5m, z_index++, obsSettings);
+            nozzleTempIcon = await obs.EnsureImageInputSettingsAsync("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 471, 1025, 1m, z_index++);
+            bedTempIcon = await obs.EnsureImageInputSettingsAsync("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 222, 1025, 1m, z_index++);
+            partFanIcon = await obs.EnsureImageInputSettingsAsync("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 969, 1m + (2m / 3m), z_index++);
+            auxFanIcon = await obs.EnsureImageInputSettingsAsync("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 227, 969, 1m + (2m / 3m), z_index++);
+            chamberFanIcon = await obs.EnsureImageInputSettingsAsync("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 475, 969, 1m + (2m / 3m), z_index++);
+            previewImage = await obs.EnsureImageInputSettingsAsync("PreviewImage", Path.Combine(ImageContentRootPath, "preview_placeholder.png"), 1667, 0, 0.5m, z_index++);
             // Static image sources
-            await obs.EnsureImageInputSettingsAsync("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021, 1m, z_index++, obsSettings);
-            await obs.EnsureImageInputSettingsAsync("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1730, 1016, 1m, z_index++, obsSettings);
-            await obs.EnsureImageInputSettingsAsync("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1250, 1017, 1m, z_index++, obsSettings);
+            await obs.EnsureImageInputSettingsAsync("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021, 1m, z_index++);
+            await obs.EnsureImageInputSettingsAsync("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1730, 1016, 1m, z_index++);
+            await obs.EnsureImageInputSettingsAsync("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1250, 1017, 1m, z_index++);
 
 
             obsInitialized = true;
@@ -406,57 +405,67 @@ public class MqttClientBackgroundService : BackgroundService
     /// <param name="p">The PrintMessage from MQTT</param>
     void CheckStreamStatus(PrintMessage p)
     {
-        // Shutdown the stream if the print is complete
-        if (queuedOperations.Count == 0)
+        try
         {
             if (p.print.current_stage == PrintStage.Idle &&
                 lastPrintStage != null &&
                 lastPrintStage != PrintStage.Idle)
             {
                 log.LogInformation("Print complete!");
-                if (obsSettings.StopStreamOnPrinterIdle)
+            }
+
+            // Stop stream?
+            if (queuedOperations.Count == 0)
+            {
+                if (p.print.current_stage == PrintStage.Idle &&
+                    obs.GetStreamStatus().IsActive &&
+                    obsSettings.StopStreamOnPrinterIdle)
                 {
                     log.LogInformation("Stopping stream in 5s");
                     queuedOperations.Enqueue(() =>
                     {
+                        // Must check again - StopStream() throws if stream already stopped
                         if (obs.GetStreamStatus().IsActive)
                         {
                             obs.StopStream();
                         }
                     });
                 }
-            }
-            if (p.print.current_stage == PrintStage.Idle &&
-                appSettings.ExitOnIdle)
-            {
-                log.LogInformation("Printer is idle. Exiting in 5s.");
-                queuedOperations.Enqueue(() => hostLifetime.StopApplication());
-            }
-
-            if (queuedOperations.Count > 0)
-            {
-                Task.Run(async () =>
+                // Check for app shutdown conditions
+                if (p.print.current_stage == PrintStage.Idle &&
+                    appSettings.ExitOnIdle)
                 {
-                    await Task.Delay(5000);
-                    while (queuedOperations.TryDequeue(out var action))
+                    log.LogInformation("Printer is idle. Exiting in 5s.");
+                    queuedOperations.Enqueue(() => hostLifetime.StopApplication());
+                }
+
+                if (queuedOperations.Count > 0)
+                {
+                    Task.Run(async () =>
                     {
-                        action();
-                    }
-                });
+                        await Task.Delay(5000);
+                        while (queuedOperations.TryDequeue(out var action))
+                        {
+                            action();
+                        }
+                    });
+                }
+            }
+
+            // Start stream?
+            if (queuedOperations.Count == 0 &&
+                p.print.current_stage != PrintStage.Idle &&
+                obsSettings.StartStreamOnStartup &&
+                !obs.GetStreamStatus().IsActive)
+            {
+                log.LogInformation("Printer has resumed printing. Starting stream.");
+                obs.StartStream();
             }
         }
-
-        // Start the stream if the printer has resumed printing
-        if (queuedOperations.Count == 0 &&
-            p.print.current_stage != PrintStage.Idle &&
-            obsSettings.StartStreamOnStartup &&
-            !obs.GetStreamStatus().IsActive)
+        finally
         {
-            log.LogInformation("Printer has resumed printing. Starting stream.");
-            obs.StartStream();
+            lastPrintStage = p.print.current_stage;
         }
-
-        lastPrintStage = p.print.current_stage;
     }
 
     /// <summary>

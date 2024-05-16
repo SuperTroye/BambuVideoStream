@@ -4,24 +4,37 @@ using System.Linq;
 using System.Threading.Tasks;
 using BambuVideoStream.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Types;
 using static BambuVideoStream.Constants.OBS;
 
-namespace BambuVideoStream.Extensions;
+namespace BambuVideoStream;
 
-public static class OBSWebsocketExtensions
+public class MyOBSWebsocket : OBSWebsocket
 {
     private static readonly TimeSpan BackoffDelay = TimeSpan.FromMilliseconds(100);
-    private static readonly Lazy<ILogger<OBSWebsocket>> logLazy = new(() => Program.LoggerFactory.CreateLogger<OBSWebsocket>());
-    private static ILogger<OBSWebsocket> Log => logLazy.Value;
+    private readonly ILogger<OBSWebsocket> log;
+    private readonly OBSSettings obsSettings;
+    private readonly BambuSettings bambuSettings;
 
-    public static bool InputExists(this OBSWebsocket obs, string sourceName, out InputSettings input)
+    public MyOBSWebsocket(
+        ILogger<OBSWebsocket> logger, 
+        IOptions<OBSSettings> obsSettings,
+        IOptions<BambuSettings> bambuSettings)
+        : base()
+    {
+        this.log = logger;
+        this.obsSettings = obsSettings.Value;
+        this.bambuSettings = bambuSettings.Value;
+    }
+
+    public bool InputExists(string sourceName, out InputSettings input)
     {
         try
         {
-            input = obs.GetInputSettings(sourceName);
+            input = base.GetInputSettings(sourceName);
             return true;
         }
         catch (ErrorResponseException e) when (e.ErrorCode == NotFoundErrorCode)
@@ -31,51 +44,51 @@ public static class OBSWebsocketExtensions
         }
     }
 
-    public static bool SceneExists(this OBSWebsocket obs, string sceneName)
-        => obs.GetSceneList().Scenes.Any(s => s.Name == sceneName);
+    public bool SceneExists(string sceneName)
+        => base.GetSceneList().Scenes.Any(s => s.Name == sceneName);
 
     // TODO file issue on this!
     // Can't customize ObsVideoSettings because all setters are internal
-    public static async Task EnsureVideoSettingsAsync(this OBSWebsocket obs)
+    public async Task EnsureVideoSettingsAsync()
     {
-        var settings = obs.GetVideoSettings();
+        var settings = base.GetVideoSettings();
         if (settings.BaseWidth == VideoWidth && settings.OutputWidth == VideoWidth &&
             settings.BaseHeight == VideoHeight && settings.OutputHeight == VideoHeight)
         {
             return;
         }
 
-        Log.LogInformation("Setting video settings to {width}x{height}", VideoWidth, VideoHeight);
+        log.LogInformation("Setting video settings to {width}x{height}", VideoWidth, VideoHeight);
         settings.BaseWidth = settings.OutputWidth = VideoWidth;
         settings.BaseHeight = settings.OutputHeight = VideoHeight;
-        obs.SetVideoSettings(settings);
+        base.SetVideoSettings(settings);
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(BackoffDelay);
     }
 
-    public static async Task EnsureBambuSceneAsync(this OBSWebsocket obs)
+    public async Task EnsureBambuSceneAsync()
     {
-        if (obs.SceneExists(BambuScene))
+        if (this.SceneExists(BambuScene))
         {
             return;
         }
 
-        Log.LogInformation("Creating scene {sceneName}", BambuScene);
-        obs.CreateScene(BambuScene);
-        obs.SetCurrentProgramScene(BambuScene);
+        log.LogInformation("Creating scene {sceneName}", BambuScene);
+        base.CreateScene(BambuScene);
+        base.SetCurrentProgramScene(BambuScene);
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(BackoffDelay);
     }
 
-    public static async Task EnsureBambuStreamSourceAsync(this OBSWebsocket obs, BambuSettings bambuSettings, OBSSettings obsSettings)
+    public async Task EnsureBambuStreamSourceAsync()
     {
-        if (obs.InputExists(BambuStreamSource, out var _))
+        if (this.InputExists(BambuStreamSource, out var _))
         {
             if (obsSettings.ForceCreateInputs)
             {
-                obs.RemoveInput(BambuStreamSource);
+                base.RemoveInput(BambuStreamSource);
             }
             else
             {
@@ -83,7 +96,7 @@ public static class OBSWebsocketExtensions
             }
         }
 
-        Log.LogInformation("Creating stream source BambuStream");
+        log.LogInformation("Creating stream source BambuStream");
 
         // ===========================================
         // BambuStreamSource
@@ -97,12 +110,12 @@ public static class OBSWebsocketExtensions
                 { "reconnect_delay_sec", 2 }
             };
 
-        var id = obs.CreateInput(BambuScene, BambuStreamSource, VideoInputType, bambuStream, true);
+        var id = base.CreateInput(BambuScene, BambuStreamSource, VideoInputType, bambuStream, true);
 
         // Wait for stream to start
-        while (obs.GetMediaInputStatus(BambuStreamSource).State != MediaState.OBS_MEDIA_STATE_PLAYING)
+        while (base.GetMediaInputStatus(BambuStreamSource).State != MediaState.OBS_MEDIA_STATE_PLAYING)
         {
-            Log.LogInformation("Waiting for stream to start...");
+            log.LogInformation("Waiting for stream to start...");
             await Task.Delay(1000);
         }
 
@@ -118,27 +131,27 @@ public static class OBSWebsocketExtensions
             { "boundsHeight", obsSettings.Output.VideoHeight },
             { "boundsWidth", obsSettings.Output.VideoWidth },
         };
-        obs.SetSceneItemTransform(BambuScene, id, transform);
+        base.SetSceneItemTransform(BambuScene, id, transform);
 
         // Make sure video source is in the background
-        obs.SetSceneItemIndex(BambuScene, id, 0);
+        base.SetSceneItemIndex(BambuScene, id, 0);
         if (obsSettings.LockInputs)
         {
-            obs.SetSceneItemLocked(BambuScene, id, true);
+            base.SetSceneItemLocked(BambuScene, id, true);
         }
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(BackoffDelay);
     }
 
-    public static async Task EnsureColorSourceAsync(this OBSWebsocket obs, OBSSettings obsSettings)
+    public async Task EnsureColorSourceAsync()
     {
         const string ColorSource = "ColorSource";
-        if (obs.InputExists(ColorSource, out _))
+        if (this.InputExists(ColorSource, out _))
         {
             if (obsSettings.ForceCreateInputs)
             {
-                obs.RemoveInput(ColorSource);
+                base.RemoveInput(ColorSource);
             }
             else
             {
@@ -146,7 +159,7 @@ public static class OBSWebsocketExtensions
             }
         }
 
-        Log.LogInformation($"Creating color source {ColorSource}");
+        log.LogInformation($"Creating color source {ColorSource}");
 
         // ===========================================
         // ColorSource
@@ -158,39 +171,37 @@ public static class OBSWebsocketExtensions
             {"width", VideoWidth}
         };
 
-        var id = obs.CreateInput(BambuScene, ColorSource, ColorInputType, colorSource, true);
+        var id = base.CreateInput(BambuScene, ColorSource, ColorInputType, colorSource, true);
 
         var transform = new JObject
         {
             { "positionX", 0 },
             { "positionY", 950 }
         };
-        obs.SetSceneItemTransform(BambuScene, id, transform);
+        base.SetSceneItemTransform(BambuScene, id, transform);
 
         // Make sure color source is in the foreground
-        obs.SetSceneItemIndex(BambuScene, id, 1);
+        base.SetSceneItemIndex(BambuScene, id, 1);
         if (obsSettings.LockInputs)
         {
-            obs.SetSceneItemLocked(BambuScene, id, true);
+            base.SetSceneItemLocked(BambuScene, id, true);
         }
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
     }
 
-    public static async Task<InputSettings> EnsureTextInputSettingsAsync(
-        this OBSWebsocket obs, 
-        string sourceName, 
-        decimal defaultPositionX, 
-        decimal defaultPositionY, 
-        int zIndex,
-        OBSSettings obsSettings)
+    public async Task<InputSettings> EnsureTextInputSettingsAsync(
+        string sourceName,
+        decimal defaultPositionX,
+        decimal defaultPositionY,
+        int zIndex)
     {
-        if (obs.InputExists(sourceName, out var input))
+        if (this.InputExists(sourceName, out var input))
         {
             if (obsSettings.ForceCreateInputs)
             {
-                obs.RemoveInput(sourceName);
+                base.RemoveInput(sourceName);
             }
             else
             {
@@ -198,7 +209,7 @@ public static class OBSWebsocketExtensions
             }
         }
 
-        Log.LogInformation("Creating text source {sourceName}", sourceName);
+        log.LogInformation("Creating text source {sourceName}", sourceName);
 
         JObject itemData = new JObject
         {
@@ -211,55 +222,53 @@ public static class OBSWebsocketExtensions
                 }
             }
         };
-        var id = obs.CreateInput(BambuScene, sourceName, TextInputType, itemData, true);
+        var id = base.CreateInput(BambuScene, sourceName, TextInputType, itemData, true);
 
         var transform = new JObject
         {
             { "positionX", defaultPositionX },
             { "positionY", defaultPositionY }
         };
-        obs.SetSceneItemTransform(BambuScene, id, transform);
+        base.SetSceneItemTransform(BambuScene, id, transform);
 
-        obs.SetSceneItemIndex(BambuScene, id, zIndex);
+        base.SetSceneItemIndex(BambuScene, id, zIndex);
         if (obsSettings.LockInputs)
         {
-            obs.SetSceneItemLocked(BambuScene, id, true);
+            base.SetSceneItemLocked(BambuScene, id, true);
         }
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
-        return obs.GetInputSettings(sourceName);
+        return base.GetInputSettings(sourceName);
     }
 
-    public static async Task<InputSettings> EnsureImageInputSettingsAsync(
-        this OBSWebsocket obs,
+    public async Task<InputSettings> EnsureImageInputSettingsAsync(
         string sourceName,
         string icon,
         decimal defaultPositionX,
         decimal defaultPositionY,
         decimal defaultScaleFactor,
-        int zIndex,
-        OBSSettings obsSettings)
+        int zIndex)
     {
-        if (obs.InputExists(sourceName, out var input))
+        if (this.InputExists(sourceName, out var input))
         {
             if (obsSettings.ForceCreateInputs)
             {
-                obs.RemoveInput(sourceName);
+                base.RemoveInput(sourceName);
             }
             else
             {
                 if (input.Settings["file"].Value<string>() != icon)
                 {
                     input.Settings["file"] = icon;
-                    obs.SetInputSettings(input);
+                    base.SetInputSettings(input);
                     await Task.Delay(BackoffDelay);
                 }
                 return input;
             }
         }
 
-        Log.LogInformation("Creating icon source {sourceName}", sourceName);
+        log.LogInformation("Creating icon source {sourceName}", sourceName);
 
         var imageInput = new JObject
         {
@@ -267,7 +276,7 @@ public static class OBSWebsocketExtensions
             {"linear_alpha", true },
             {"unload", true }
         };
-        var id = obs.CreateInput(BambuScene, sourceName, ImageInputType, imageInput, true);
+        var id = base.CreateInput(BambuScene, sourceName, ImageInputType, imageInput, true);
 
         var transform = new JObject
         {
@@ -276,16 +285,16 @@ public static class OBSWebsocketExtensions
             { "scaleX", defaultScaleFactor },
             { "scaleY", defaultScaleFactor }
         };
-        obs.SetSceneItemTransform(BambuScene, id, transform);
+        base.SetSceneItemTransform(BambuScene, id, transform);
 
-        obs.SetSceneItemIndex(BambuScene, id, zIndex);
+        base.SetSceneItemIndex(BambuScene, id, zIndex);
         if (obsSettings.LockInputs)
         {
-            obs.SetSceneItemLocked(BambuScene, id, true);
+            base.SetSceneItemLocked(BambuScene, id, true);
         }
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
-        return obs.GetInputSettings(sourceName);
+        return base.GetInputSettings(sourceName);
     }
 }
