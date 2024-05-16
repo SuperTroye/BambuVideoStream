@@ -1,61 +1,39 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
 using System.Xml.Linq;
 using System.Xml.XPath;
 using BambuVideoStream.Models;
+using FluentFTP;
+using FluentFTP.GnuTLS;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using WinSCP;
 
 
 namespace BambuVideoStream;
 
-public class FtpService
+public class FtpService(
+    IOptions<BambuSettings> options,
+    ILogger<FtpService> logger,
+    IHostApplicationLifetime lifetime)
 {
-    private readonly ILogger<FtpService> log;
-    private BambuSettings settings;
-    private SessionOptions sessionOptions;
-    private CancellationToken ct;
+    private readonly ILogger<FtpService> log = logger;
+    private readonly BambuSettings settings = options.Value;
+    private readonly CancellationToken ct = lifetime.ApplicationStopping;
 
-    public FtpService(
-        IOptions<BambuSettings> options,
-        ILogger<FtpService> logger,
-        IHostApplicationLifetime lifetime)
-    {
-        this.ct = lifetime.ApplicationStopping;
-        this.settings = options.Value;
-
-        this.sessionOptions = new SessionOptions
-        {
-            Protocol = Protocol.Ftp,
-            HostName = this.settings.IpAddress,
-            PortNumber = 990,
-            UserName = this.settings.Username,
-            Password = this.settings.Password,
-            FtpSecure = FtpSecure.Implicit,
-            GiveUpSecurityAndAcceptAnyTlsHostCertificate = true
-        };
-
-        this.log = logger;
-    }
-
-    public RemoteFileInfoCollection ListDirectory()
+    public IList<FtpListItem> ListDirectory()
     {
         try
         {
             this.ct.ThrowIfCancellationRequested();
-            using (var session = CreateSession())
-            using (this.ct.Register(session.Abort))
-            {
-                session.Open(this.sessionOptions);
 
-                RemoteDirectoryInfo directory = session.ListDirectory("/cache");
-
-                return directory.Files;
-            }
+            using var ftp = this.GetFtpClient();
+            using var _ = this.ct.Register(ftp.Disconnect);
+            var directory = ftp.GetListing("/cache");
+            return directory;
         }
         catch (OperationCanceledException e)
         {
@@ -68,15 +46,18 @@ public class FtpService
         try
         {
             this.ct.ThrowIfCancellationRequested();
+
             using var file = new MemoryStream();
-            using (var session = CreateSession())
+
+            using (var ftp = this.GetFtpClient())
+            using (this.ct.Register(ftp.Disconnect))
             {
-                session.Open(this.sessionOptions);
-
-                using var stream = session.GetFile(filename);
-                stream.CopyToAsync(file, this.ct).Wait(this.ct);
+                if (!ftp.DownloadStream(file, filename))
+                {
+                    throw new FileNotFoundException($"File {filename} not found");
+                }
             }
-
+            
             file.Position = 0;
             this.ct.ThrowIfCancellationRequested();
             using var archive = new ZipArchive(file, ZipArchiveMode.Read);
@@ -106,13 +87,16 @@ public class FtpService
         try
         {
             this.ct.ThrowIfCancellationRequested();
-            using var file = new MemoryStream();
-            using (var session = CreateSession())
-            {
-                session.Open(this.sessionOptions);
 
-                using var stream = session.GetFile(filename);
-                stream.CopyToAsync(file, this.ct).Wait(this.ct);
+            using var file = new MemoryStream();
+
+            using (var ftp = this.GetFtpClient())
+            using (this.ct.Register(ftp.Disconnect))
+            {
+                if (!ftp.DownloadStream(file, filename))
+                {
+                    throw new FileNotFoundException($"File {filename} not found");
+                }
             }
 
             file.Position = 0;
@@ -143,9 +127,40 @@ public class FtpService
         return null;
     }
 
-    private static Session CreateSession() =>
-        new()
+    private FtpClient GetFtpClient()
+    {
+        var ftp = new FtpClient(
+            this.settings.IpAddress,
+            this.settings.Username,
+            this.settings.Password,
+            990,
+            new FtpConfig
+            {
+                LogHost = true,
+                ValidateAnyCertificate = true,
+                EncryptionMode = FtpEncryptionMode.Implicit,
+                CustomStream = typeof(GnuTlsStream),
+                DataConnectionType = FtpDataConnectionType.EPSV,
+                DownloadDataType = FtpDataType.Binary
+            },
+            new FtpLogger(this.log));
+        ftp.Connect();
+        return ftp;
+    }
+
+    private class FtpLogger(ILogger<FtpService> logger) : IFtpLogger
+    {
+        private readonly ILogger<FtpService> log = logger;
+
+        public void Log(FtpLogEntry entry)
         {
-            ExecutablePath = Path.Combine(AppContext.BaseDirectory, "WinSCP.exe")
-        };
+            var level = entry.Severity switch
+            {
+                FtpTraceLevel.Warn => LogLevel.Warning,
+                FtpTraceLevel.Error => LogLevel.Error,
+                _ => LogLevel.Trace
+            };
+            log.Log(level, entry.Exception, "{message}", entry.Message);
+        }
+    }
 }

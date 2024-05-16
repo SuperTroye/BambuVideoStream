@@ -10,22 +10,11 @@ public class Ipcam
     public string resolution { get; set; }
     public string timelapse { get; set; }
 
-
     public string GetIPCamInfo
-    {
-        get
+        => this.ipcam_dev switch
         {
-            switch (this.ipcam_dev)
-            {
-                case "1":
-                    return "On";
-                case "0":
-                    return "Off";
-                default:
-                    return this.ipcam_dev;
-            }
-        }
-    }
-
-
+            "1" => "On",
+            "0" => "Off",
+            _ => this.ipcam_dev,
+        };
 }
