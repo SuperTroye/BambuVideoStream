@@ -19,7 +19,6 @@ using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Communication;
 using OBSWebsocketDotNet.Types;
 
-
 namespace BambuVideoStream;
 
 public class MqttClientBackgroundService : BackgroundService
@@ -37,6 +36,7 @@ public class MqttClientBackgroundService : BackgroundService
     readonly MqttClientOptions mqttClientOptions;
     readonly MqttClientSubscribeOptions mqttSubscribeOptions;
     readonly OBSWebsocket obs;
+    readonly FtpService ftpService;
 
     bool obsInitialized;
     InputSettings chamberTemp;
@@ -60,8 +60,6 @@ public class MqttClientBackgroundService : BackgroundService
     InputSettings auxFanIcon;
     InputSettings chamberFanIcon;
     InputSettings previewImage;
-
-    FtpService ftpService;
 
     string subtask_name;
 
@@ -134,7 +132,7 @@ public class MqttClientBackgroundService : BackgroundService
             await waitForClose.Task;
 
             // shutting down
-            await mqttClient.DisconnectAsync();
+            await mqttClient.DisconnectAsync(cancellationToken: CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -314,7 +312,7 @@ public class MqttClientBackgroundService : BackgroundService
                     UpdateFanIconSetting(auxFanIcon, p.print.big_fan1_speed);
                     UpdateFanIconSetting(chamberFanIcon, p.print.big_fan2_speed);
 
-                    var tray = GetCurrentTray(p.print.ams);
+                    var tray = p.print.ams?.GetCurrentTray();
                     if (tray != null)
                     {
                         UpdateSettingText(filament, tray.tray_type);
@@ -397,26 +395,6 @@ public class MqttClientBackgroundService : BackgroundService
         {
             log.LogError(ex, "Failed to get image preview");
         }
-    }
-
-    Tray GetCurrentTray(Ams msg)
-    {
-        if (!string.IsNullOrEmpty(msg?.tray_now))
-        {
-            var tray = msg.ams
-                .SelectMany(t => t.tray)
-                .Where(t => t.id == msg.tray_now)
-                .FirstOrDefault();
-
-            if (tray != null && string.IsNullOrEmpty(tray.tray_type))
-            {
-                tray.tray_type = "Empty";
-            }
-
-            return tray;
-        }
-
-        return null;
     }
 
     /// <summary>

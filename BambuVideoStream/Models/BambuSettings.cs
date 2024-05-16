@@ -1,4 +1,7 @@
-﻿namespace BambuVideoStream.Models;
+﻿using System;
+using System.IO;
+
+namespace BambuVideoStream.Models;
 
 public class BambuSettings
 {
@@ -7,5 +10,5 @@ public class BambuSettings
     public string Username { get; set; }
     public string Password { get; set; }
     public string Serial { get; set; }
-    public string PathToSDP { get; set; }
+    public string PathToSDP { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "/Roaming/BambuStudio/cameratools/ffmpeg.sdp");
 }

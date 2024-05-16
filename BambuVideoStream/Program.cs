@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using BambuVideoStream;
 using BambuVideoStream.Models;
 using Microsoft.Extensions.Configuration;
@@ -7,7 +8,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var builder = new HostApplicationBuilder(args);
-builder.Configuration.AddJsonFile("settings.json", optional: true);
+// Optional config file that can contain user settings
+builder.Configuration.AddJsonFile("BambuVideoStream.json", optional: true);
 
 string fileLogFormat = builder.Configuration.GetValue<string>("Logging:File:FileFormat");
 if (!string.IsNullOrEmpty(fileLogFormat))
@@ -16,7 +18,8 @@ if (!string.IsNullOrEmpty(fileLogFormat))
     {
         minLevel = LogLevel.Information;
     }
-    builder.Logging.AddFile(fileLogFormat, minimumLevel: minLevel);
+    builder.Logging.AddFile(fileLogFormat, minimumLevel: minLevel, isJson: false);
+    builder.Logging.AddFile(Path.ChangeExtension(fileLogFormat, ".json"), minimumLevel: minLevel, isJson: true);
 }
 builder.Services.Configure<BambuSettings>(builder.Configuration.GetSection(nameof(BambuSettings)));
 builder.Services.Configure<OBSSettings>(builder.Configuration.GetSection(nameof(OBSSettings)));

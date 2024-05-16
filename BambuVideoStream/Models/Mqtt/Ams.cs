@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace BambuVideoStream.Models.Mqtt;
 
@@ -19,4 +20,24 @@ public class Ams
     public string tray_reading_bits { get; set; }
     public string tray_tar { get; set; }
     public int version { get; set; }
+
+    public Tray GetCurrentTray()
+    {
+        if (!string.IsNullOrEmpty(this?.tray_now))
+        {
+            var tray = this.ams
+                .SelectMany(t => t.tray)
+                .Where(t => t.id == this.tray_now)
+                .FirstOrDefault();
+
+            if (tray != null && string.IsNullOrEmpty(tray.tray_type))
+            {
+                tray.tray_type = "Empty";
+            }
+
+            return tray;
+        }
+
+        return null;
+    }
 }

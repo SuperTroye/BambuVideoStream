@@ -7,7 +7,6 @@
     <UserSecretsId>f76d68f2-da99-4ef8-a6ca-13e366f0334c</UserSecretsId>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Images\*">
