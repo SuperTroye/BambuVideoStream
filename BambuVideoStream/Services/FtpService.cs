@@ -47,7 +47,7 @@ public class FtpService
         try
         {
             ct.ThrowIfCancellationRequested();
-            using (Session session = new Session())
+            using (var session = CreateSession())
             using (ct.Register(session.Abort))
             {
                 session.Open(sessionOptions);
@@ -69,7 +69,7 @@ public class FtpService
         {
             ct.ThrowIfCancellationRequested();
             using var file = new MemoryStream();
-            using (var session = new Session())
+            using (var session = CreateSession())
             {
                 session.Open(sessionOptions);
 
@@ -107,7 +107,7 @@ public class FtpService
         {
             ct.ThrowIfCancellationRequested();
             using var file = new MemoryStream();
-            using (Session session = new Session())
+            using (var session = CreateSession())
             {
                 session.Open(sessionOptions);
 
@@ -142,4 +142,10 @@ public class FtpService
 
         return null;
     }
+
+    private static Session CreateSession() =>
+        new()
+        {
+            ExecutablePath = Path.Combine(AppContext.BaseDirectory, "WinSCP.exe")
+        };
 }
