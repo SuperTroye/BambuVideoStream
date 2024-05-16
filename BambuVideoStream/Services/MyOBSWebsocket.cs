@@ -12,23 +12,15 @@ using static BambuVideoStream.Constants.OBS;
 
 namespace BambuVideoStream;
 
-public class MyOBSWebsocket : OBSWebsocket
+public class MyOBSWebsocket(
+    ILogger<OBSWebsocket> logger,
+    IOptions<OBSSettings> obsSettings,
+    IOptions<BambuSettings> bambuSettings) : OBSWebsocket()
 {
     private static readonly TimeSpan BackoffDelay = TimeSpan.FromMilliseconds(100);
-    private readonly ILogger<OBSWebsocket> log;
-    private readonly OBSSettings obsSettings;
-    private readonly BambuSettings bambuSettings;
-
-    public MyOBSWebsocket(
-        ILogger<OBSWebsocket> logger, 
-        IOptions<OBSSettings> obsSettings,
-        IOptions<BambuSettings> bambuSettings)
-        : base()
-    {
-        this.log = logger;
-        this.obsSettings = obsSettings.Value;
-        this.bambuSettings = bambuSettings.Value;
-    }
+    private readonly ILogger<OBSWebsocket> log = logger;
+    private readonly OBSSettings obsSettings = obsSettings.Value;
+    private readonly BambuSettings bambuSettings = bambuSettings.Value;
 
     public bool InputExists(string sourceName, out InputSettings input)
     {
@@ -58,7 +50,7 @@ public class MyOBSWebsocket : OBSWebsocket
             return;
         }
 
-        log.LogInformation("Setting video settings to {width}x{height}", VideoWidth, VideoHeight);
+        this.log.LogInformation("Setting video settings to {width}x{height}", VideoWidth, VideoHeight);
         settings.BaseWidth = settings.OutputWidth = VideoWidth;
         settings.BaseHeight = settings.OutputHeight = VideoHeight;
         base.SetVideoSettings(settings);
@@ -74,7 +66,7 @@ public class MyOBSWebsocket : OBSWebsocket
             return;
         }
 
-        log.LogInformation("Creating scene {sceneName}", BambuScene);
+        this.log.LogInformation("Creating scene {sceneName}", BambuScene);
         base.CreateScene(BambuScene);
         base.SetCurrentProgramScene(BambuScene);
 
@@ -86,7 +78,7 @@ public class MyOBSWebsocket : OBSWebsocket
     {
         if (this.InputExists(BambuStreamSource, out var _))
         {
-            if (obsSettings.ForceCreateInputs)
+            if (this.obsSettings.ForceCreateInputs)
             {
                 base.RemoveInput(BambuStreamSource);
             }
@@ -96,7 +88,7 @@ public class MyOBSWebsocket : OBSWebsocket
             }
         }
 
-        log.LogInformation("Creating stream source BambuStream");
+        this.log.LogInformation("Creating stream source BambuStream");
 
         // ===========================================
         // BambuStreamSource
@@ -105,7 +97,7 @@ public class MyOBSWebsocket : OBSWebsocket
             {
                 { "ffmpeg_options", FfmpegOptions },
                 { "hw_decode", true },
-                { "input", $"file:{Path.Combine(bambuSettings.PathToSDP)}" },
+                { "input", $"file:{Path.Combine(this.bambuSettings.PathToSDP)}" },
                 { "is_local_file", false },
                 { "reconnect_delay_sec", 2 }
             };
@@ -115,7 +107,7 @@ public class MyOBSWebsocket : OBSWebsocket
         // Wait for stream to start
         while (base.GetMediaInputStatus(BambuStreamSource).State != MediaState.OBS_MEDIA_STATE_PLAYING)
         {
-            log.LogInformation("Waiting for stream to start...");
+            this.log.LogInformation("Waiting for stream to start...");
             await Task.Delay(1000);
         }
 
@@ -128,14 +120,14 @@ public class MyOBSWebsocket : OBSWebsocket
             { "scaleY", 1.0 },
             { "boundsType", "OBS_BOUNDS_SCALE_INNER" },
             { "boundsAlignment", 0 },
-            { "boundsHeight", obsSettings.Output.VideoHeight },
-            { "boundsWidth", obsSettings.Output.VideoWidth },
+            { "boundsHeight", this.obsSettings.Output.VideoHeight },
+            { "boundsWidth", this.obsSettings.Output.VideoWidth },
         };
         base.SetSceneItemTransform(BambuScene, id, transform);
 
         // Make sure video source is in the background
         base.SetSceneItemIndex(BambuScene, id, 0);
-        if (obsSettings.LockInputs)
+        if (this.obsSettings.LockInputs)
         {
             base.SetSceneItemLocked(BambuScene, id, true);
         }
@@ -149,7 +141,7 @@ public class MyOBSWebsocket : OBSWebsocket
         const string ColorSource = "ColorSource";
         if (this.InputExists(ColorSource, out _))
         {
-            if (obsSettings.ForceCreateInputs)
+            if (this.obsSettings.ForceCreateInputs)
             {
                 base.RemoveInput(ColorSource);
             }
@@ -159,7 +151,7 @@ public class MyOBSWebsocket : OBSWebsocket
             }
         }
 
-        log.LogInformation($"Creating color source {ColorSource}");
+        this.log.LogInformation($"Creating color source {ColorSource}");
 
         // ===========================================
         // ColorSource
@@ -182,7 +174,7 @@ public class MyOBSWebsocket : OBSWebsocket
 
         // Make sure color source is in the foreground
         base.SetSceneItemIndex(BambuScene, id, 1);
-        if (obsSettings.LockInputs)
+        if (this.obsSettings.LockInputs)
         {
             base.SetSceneItemLocked(BambuScene, id, true);
         }
@@ -199,7 +191,7 @@ public class MyOBSWebsocket : OBSWebsocket
     {
         if (this.InputExists(sourceName, out var input))
         {
-            if (obsSettings.ForceCreateInputs)
+            if (this.obsSettings.ForceCreateInputs)
             {
                 base.RemoveInput(sourceName);
             }
@@ -209,7 +201,7 @@ public class MyOBSWebsocket : OBSWebsocket
             }
         }
 
-        log.LogInformation("Creating text source {sourceName}", sourceName);
+        this.log.LogInformation("Creating text source {sourceName}", sourceName);
 
         JObject itemData = new JObject
         {
@@ -232,7 +224,7 @@ public class MyOBSWebsocket : OBSWebsocket
         base.SetSceneItemTransform(BambuScene, id, transform);
 
         base.SetSceneItemIndex(BambuScene, id, zIndex);
-        if (obsSettings.LockInputs)
+        if (this.obsSettings.LockInputs)
         {
             base.SetSceneItemLocked(BambuScene, id, true);
         }
@@ -252,7 +244,7 @@ public class MyOBSWebsocket : OBSWebsocket
     {
         if (this.InputExists(sourceName, out var input))
         {
-            if (obsSettings.ForceCreateInputs)
+            if (this.obsSettings.ForceCreateInputs)
             {
                 base.RemoveInput(sourceName);
             }
@@ -268,7 +260,7 @@ public class MyOBSWebsocket : OBSWebsocket
             }
         }
 
-        log.LogInformation("Creating icon source {sourceName}", sourceName);
+        this.log.LogInformation("Creating icon source {sourceName}", sourceName);
 
         var imageInput = new JObject
         {
@@ -288,7 +280,7 @@ public class MyOBSWebsocket : OBSWebsocket
         base.SetSceneItemTransform(BambuScene, id, transform);
 
         base.SetSceneItemIndex(BambuScene, id, zIndex);
-        if (obsSettings.LockInputs)
+        if (this.obsSettings.LockInputs)
         {
             base.SetSceneItemLocked(BambuScene, id, true);
         }

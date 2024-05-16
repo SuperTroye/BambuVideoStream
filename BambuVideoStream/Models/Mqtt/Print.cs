@@ -88,20 +88,20 @@ public class Print
     public Xcam xcam { get; set; }
 
     // TODO: For some reason stg_cur doesn't update to status 4 when filament is changing w/ AMS...
-    public PrintStage current_stage => (PrintStage)stg_cur;
+    public PrintStage current_stage => (PrintStage)this.stg_cur;
 
     public string current_stage_str
     {
         get
         {
-            if (!Enum.IsDefined(current_stage))
+            if (!Enum.IsDefined(this.current_stage))
             {
                 return "Undefined";
             }
             return typeof(PrintStage)
-                .GetField(current_stage.ToString())?
+                .GetField(this.current_stage.ToString())?
                 .GetCustomAttribute<DescriptionAttribute>()?
-                .Description ?? stg_cur.ToString();
+                .Description ?? this.stg_cur.ToString();
         }
     }
 
@@ -115,9 +115,9 @@ public class Print
         return percent;
     }
 
-    public SpeedLevel speed_level => (SpeedLevel)spd_lvl;
+    public SpeedLevel speed_level => (SpeedLevel)this.spd_lvl;
 
-    public string speed_level_str => Enum.IsDefined(speed_level) ? speed_level.ToString() : "Undefined";
+    public string speed_level_str => Enum.IsDefined(this.speed_level) ? this.speed_level.ToString() : "Undefined";
 }
 
 public enum PrintStage

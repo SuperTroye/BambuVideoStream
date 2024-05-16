@@ -15,14 +15,14 @@ public class Ipcam
     {
         get
         {
-            switch (ipcam_dev)
+            switch (this.ipcam_dev)
             {
                 case "1":
                     return "On";
                 case "0":
                     return "Off";
                 default:
-                    return ipcam_dev;
+                    return this.ipcam_dev;
             }
         }
     }
