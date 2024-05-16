@@ -1,12 +1,11 @@
-﻿namespace BambuVideoStream
+﻿namespace BambuVideoStream.Models;
+
+public class BambuSettings
 {
-    public class BambuSettings
-    {
-        public string ipAddress { get; set; }
-        public int port { get; set; }
-        public string username { get; set; }
-        public string password { get; set; }
-        public string serial { get; set; }
-        public string pathToSDP { get; set; }
-    }
+    public string IpAddress { get; set; }
+    public int Port { get; set; }
+    public string Username { get; set; }
+    public string Password { get; set; }
+    public string Serial { get; set; }
+    public string PathToSDP { get; set; }
 }

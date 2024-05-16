@@ -1,12 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using MQTTnet;
-using MQTTnet.Client;
-using Newtonsoft.Json.Linq;
-using OBSWebsocketDotNet;
-using OBSWebsocketDotNet.Types;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Security.Authentication;
@@ -14,6 +6,18 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using BambuVideoStream.Extensions;
+using BambuVideoStream.Models;
+using BambuVideoStream.Models.Mqtt;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using MQTTnet;
+using MQTTnet.Client;
+using Newtonsoft.Json;
+using OBSWebsocketDotNet;
+using OBSWebsocketDotNet.Communication;
+using OBSWebsocketDotNet.Types;
 
 
 namespace BambuVideoStream;
@@ -22,10 +26,19 @@ public class MqttClientBackgroundService : BackgroundService
 {
     static readonly string ImageContentRootPath = Path.Combine(AppContext.BaseDirectory, "Images");
 
-    IMqttClient mqttClient;
-    BambuSettings settings;
+    readonly ILogger<MqttClientBackgroundService> log;
+    readonly IHostApplicationLifetime hostLifetime;
 
-    OBSWebsocket obs;
+    readonly AppSettings appSettings;
+    readonly BambuSettings bambuSettings;
+    readonly OBSSettings obsSettings;
+
+    readonly IMqttClient mqttClient;
+    readonly MqttClientOptions mqttClientOptions;
+    readonly MqttClientSubscribeOptions mqttSubscribeOptions;
+    readonly OBSWebsocket obs;
+
+    bool obsInitialized;
     InputSettings chamberTemp;
     InputSettings bedTemp;
     InputSettings targetBedTemp;
@@ -46,107 +59,187 @@ public class MqttClientBackgroundService : BackgroundService
     InputSettings partFanIcon;
     InputSettings auxFanIcon;
     InputSettings chamberFanIcon;
+    InputSettings previewImage;
 
-    private FtpService ftpService;
-
-    public MqttClientBackgroundService(
-        IConfiguration config,
-        FtpService ftpService,
-        IOptions<BambuSettings> options)
-    {
-        settings = options.Value;
-
-        string ObsWsConnection = config.GetValue<string>("ObsSettings:WsConnection");
-        string ObsPassword = config.GetValue<string>("ObsSettings:Password");
-
-        obs = new OBSWebsocket();
-        obs.Connected += Obs_Connected;
-        obs.ConnectAsync(ObsWsConnection, ObsPassword ?? string.Empty);
-
-        this.ftpService = ftpService;
-    }
-
-
-    private void Obs_Connected(object sender, EventArgs e)
-    {
-        Console.WriteLine("connected to OBS WebSocket");
-
-        //GetSceneItems();
-        //InitSceneInputs();
-
-        chamberTemp = obs.GetInputSettings("ChamberTemp");
-        bedTemp = obs.GetInputSettings("BedTemp");
-
-        nozzleTempIcon = obs.GetInputSettings("NozzleTempIcon");
-        bedTempIcon = obs.GetInputSettings("BedTempIcon");
-
-        targetBedTemp = obs.GetInputSettings("TargetBedTemp");
-        nozzleTemp = obs.GetInputSettings("NozzleTemp");
-        targetNozzleTemp = obs.GetInputSettings("TargetNozzleTemp");
-        percentComplete = obs.GetInputSettings("PercentComplete");
-        layers = obs.GetInputSettings("Layers");
-        timeRemaining = obs.GetInputSettings("TimeRemaining");
-        subtaskName = obs.GetInputSettings("SubtaskName");
-        stage = obs.GetInputSettings("Stage");
-        partFan = obs.GetInputSettings("PartFan");
-        auxFan = obs.GetInputSettings("AuxFan");
-        chamberFan = obs.GetInputSettings("ChamberFan");
-        filament = obs.GetInputSettings("Filament");
-        printWeight = obs.GetInputSettings("PrintWeight");
-        partFanIcon = obs.GetInputSettings("PartFanIcon");
-        auxFanIcon = obs.GetInputSettings("AuxFanIcon");
-        chamberFanIcon = obs.GetInputSettings("ChamberFanIcon");
-    }
-
-
+    FtpService ftpService;
 
     string subtask_name;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    int lastLayerNum;
+
+    public MqttClientBackgroundService(
+        FtpService ftpService,
+        IOptions<BambuSettings> bambuOptions,
+        IOptions<OBSSettings> obsOptions,
+        IOptions<AppSettings> appOptions,
+        ILogger<MqttClientBackgroundService> logger,
+        IHostApplicationLifetime hostLifetime)
     {
+        bambuSettings = bambuOptions.Value;
+        obsSettings = obsOptions.Value;
+        appSettings = appOptions.Value;
+
+        obs = new OBSWebsocket();
+        obs.Connected += Obs_Connected;
+        obs.Disconnected += Obs_Disconnected;
+
         var mqttFactory = new MqttFactory();
-
         mqttClient = mqttFactory.CreateMqttClient();
-
-        var mqttClientOptions = new MqttClientOptionsBuilder()
-            .WithTcpServer(settings.ipAddress, settings.port)
-            .WithCredentials(settings.username, settings.password)
-            .WithTls(new MqttClientOptionsBuilderTlsParameters()
+        mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
+        mqttClient.DisconnectedAsync += MqttClient_DisconnectedAsync;
+        mqttClientOptions = new MqttClientOptionsBuilder()
+            .WithTcpServer(bambuSettings.IpAddress, bambuSettings.Port)
+            .WithCredentials(bambuSettings.Username, bambuSettings.Password)
+            .WithTlsOptions(new MqttClientTlsOptions
             {
                 UseTls = true,
                 SslProtocol = SslProtocols.Tls12,
                 CertificateValidationHandler = x => { return true; }
             })
             .Build();
-
-        mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
-
-        try
-        {
-            var connectResult = await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
-
-            Console.WriteLine("connected to MQTT");
-
-            var mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
+        mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
             .WithTopicFilter(f =>
             {
-                f.WithTopic($"device/{settings.serial}/report");
+                f.WithTopic($"device/{bambuSettings.Serial}/report");
             }).Build();
 
-            await mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+        this.ftpService = ftpService;
+        this.log = logger;
+        this.hostLifetime = hostLifetime;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        obs.ConnectAsync(obsSettings.WsConnection, obsSettings.WsPassword ?? string.Empty);
+        stoppingToken.Register(() => obs.Disconnect());
+
+        var mqttFactory = new MqttFactory();
+
+        using var _ = mqttClient;
+        try
+        {
+            var connectResult = await mqttClient.ConnectAsync(mqttClientOptions, stoppingToken);
+            if (connectResult?.ResultCode != MqttClientConnectResultCode.Success)
+            {
+                throw new Exception($"Failed to connect to MQTT: {connectResult.ResultCode}");
+            }
+
+            log.LogInformation("connected to MQTT");
+
+            await mqttClient.SubscribeAsync(mqttSubscribeOptions, stoppingToken);
+
+            // Wait for the application to stop
+            var waitForClose = new TaskCompletionSource();
+            stoppingToken.Register(() => waitForClose.SetResult());
+            await waitForClose.Task;
+
+            // shutting down
+            await mqttClient.DisconnectAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            log.LogError(ex, "MQTT failure");
+            hostLifetime.StopApplication();
         }
     }
 
+    private async void Obs_Connected(object sender, EventArgs e)
+    {
+        log.LogInformation("connected to OBS WebSocket");
+
+        if (appSettings.PrintExistingSceneItemsOnStartup)
+        {
+            PrintSceneItems();
+        }
+
+        try
+        {
+            // ===========================================
+            // Scene and video stream
+            // ===========================================
+            await obs.EnsureVideoSettingsAsync();
+            await obs.EnsureBambuSceneAsync();
+            await obs.EnsureBambuStreamSourceAsync(bambuSettings, obsSettings);
+            await obs.EnsureColorSourceAsync(obsSettings);
+
+            // Z-index for inputs starts at 2 (will be incremented below), because the stream and color source are at 0 and 1
+            int z_index = 2;
+
+            // ===========================================
+            // Text sources
+            // ===========================================
+            chamberTemp = await obs.EnsureTextInputSettingsAsync("ChamberTemp", 71, 1029, z_index++, obsSettings);
+            bedTemp = await obs.EnsureTextInputSettingsAsync("BedTemp", 277, 1029, z_index++, obsSettings);
+            targetBedTemp = await obs.EnsureTextInputSettingsAsync("TargetBedTemp", 313, 1029, z_index++, obsSettings);
+            nozzleTemp = await obs.EnsureTextInputSettingsAsync("NozzleTemp", 527, 1028, z_index++, obsSettings);
+            targetNozzleTemp = await obs.EnsureTextInputSettingsAsync("TargetNozzleTemp", 580, 1028, z_index++, obsSettings);
+            percentComplete = await obs.EnsureTextInputSettingsAsync("PercentComplete", 1510, 1022, z_index++, obsSettings);
+            layers = await obs.EnsureTextInputSettingsAsync("Layers", 1652, 972, z_index++, obsSettings);
+            timeRemaining = await obs.EnsureTextInputSettingsAsync("TimeRemaining", 1791, 1024, z_index++, obsSettings);
+            subtaskName = await obs.EnsureTextInputSettingsAsync("SubtaskName", 838, 971, z_index++, obsSettings);
+            stage = await obs.EnsureTextInputSettingsAsync("Stage", 842, 1019, z_index++, obsSettings);
+            partFan = await obs.EnsureTextInputSettingsAsync("PartFan", 58, 971, z_index++, obsSettings);
+            auxFan = await obs.EnsureTextInputSettingsAsync("AuxFan", 277, 971, z_index++, obsSettings);
+            chamberFan = await obs.EnsureTextInputSettingsAsync("ChamberFan", 521, 971, z_index++, obsSettings);
+            filament = await obs.EnsureTextInputSettingsAsync("Filament", 1437, 1022, z_index++, obsSettings);
+            printWeight = await obs.EnsureTextInputSettingsAsync("PrintWeight", 1303, 1021, z_index++, obsSettings);
+
+            // ===========================================
+            // Image sources
+            // ===========================================
+            nozzleTempIcon = await obs.EnsureImageInputSettingsAsync("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 471, 1025, 1m, z_index++, obsSettings);
+            bedTempIcon = await obs.EnsureImageInputSettingsAsync("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 222, 1025, 1m, z_index++, obsSettings);
+            partFanIcon = await obs.EnsureImageInputSettingsAsync("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 969, 1m + (2m / 3m), z_index++, obsSettings);
+            auxFanIcon = await obs.EnsureImageInputSettingsAsync("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 227, 969, 1m + (2m / 3m), z_index++, obsSettings);
+            chamberFanIcon = await obs.EnsureImageInputSettingsAsync("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 475, 969, 1m + (2m / 3m), z_index++, obsSettings);
+            previewImage = await obs.EnsureImageInputSettingsAsync("PreviewImage", Path.Combine(ImageContentRootPath, "preview_placeholder.png"), 1667, 0, 0.5m, z_index++, obsSettings);
+            // Static image sources
+            await obs.EnsureImageInputSettingsAsync("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021, 1m, z_index++, obsSettings);
+            await obs.EnsureImageInputSettingsAsync("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1730, 1016, 1m, z_index++, obsSettings);
+            await obs.EnsureImageInputSettingsAsync("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1250, 1017, 1m, z_index++, obsSettings);
+
+
+            obsInitialized = true;
+
+            if (obsSettings.StartStreamOnStartup && !obs.GetStreamStatus().IsActive)
+            {
+                obs.StartStream();
+            }
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Failed to initialize OBS inputs. Is your OBS Studio setup correctly?");
+            hostLifetime.StopApplication();
+        }
+    }
+
+    private void Obs_Disconnected(object sender, ObsDisconnectionInfo e)
+    {
+        log.LogWarning("OBS WebSocket disconnected: {reason}", e.DisconnectReason);
+        if (e.ObsCloseCode == ObsCloseCodes.AuthenticationFailed)
+        {
+            log.LogError("OBS WebSocket authentication failed. Check your OBS settings.");
+        }
+        hostLifetime.StopApplication();
+    }
+
+    private Task MqttClient_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
+    {
+        log.LogInformation("MQTT disconnected: {reason}", arg.Reason);
+        if (arg.Reason == MqttClientDisconnectReason.NotAuthorized)
+        {
+            log.LogError("MQTT authentication failed. Check your Bambu settings.");
+        }
+        hostLifetime.StopApplication();
+        return Task.CompletedTask;
+    }
 
     Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
     {
         try
         {
             string json = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment);
+            log.LogTrace("Received message: {json}", json);
 
             var doc = JsonDocument.Parse(json);
 
@@ -155,90 +248,111 @@ public class MqttClientBackgroundService : BackgroundService
             switch (root)
             {
                 case "print":
-
-                    //System.IO.File.AppendAllText("D:\\Desktop\\log.json", json + Environment.NewLine + ", " + Environment.NewLine);
-
+                    log.LogTrace("Received 'print' message");
+                    
                     var p = doc.Deserialize<PrintMessage>();
 
-                    if (obs.IsConnected)
+                    if (!obs.IsConnected || !obsInitialized)
                     {
-                        UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
-                        UpdateSettingText(bedTemp, $"{p.print.bed_temper}");
-
-                        UpdateBedTempIconSetting(bedTempIcon, p.print.bed_target_temper);
-                        UpdateNozzleTempIconSetting(nozzleTempIcon, p.print.nozzle_target_temper);
-
-                        string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
-                        if (p.print.bed_target_temper == 0)
-                            targetBedTempStr = "";
-
-                        UpdateSettingText(targetBedTemp, targetBedTempStr);
-                        UpdateSettingText(nozzleTemp, $"{p.print.nozzle_temper}");
-
-                        string targetNozzleTempStr = $" / {p.print.nozzle_target_temper} °C";
-                        if (p.print.nozzle_target_temper == 0)
-                            targetNozzleTempStr = "";
-
-                        UpdateSettingText(targetNozzleTemp, targetNozzleTempStr);
-
-                        UpdateSettingText(percentComplete, $"{p.print.mc_percent}%");
-                        UpdateSettingText(layers, $"Layers: {p.print.layer_num}/{p.print.total_layer_num}");
-
-                        var time = TimeSpan.FromMinutes(p.print.mc_remaining_time);
-                        string timeFormatted = "";
-                        if (time.TotalMinutes > 59)
-                            timeFormatted = string.Format("-{0}h{1}m", (int)time.TotalHours, time.Minutes);
-                        else
-                            timeFormatted = string.Format("-{0}m", time.Minutes);
-
-                        UpdateSettingText(timeRemaining, timeFormatted);
-                        UpdateSettingText(subtaskName, $"{p.print.subtask_name}");
-                        UpdateSettingText(stage, $"{p.print.current_stage}");
-
-                        UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
-                        UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
-                        UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
-
-                        UpdateFanIconSetting(partFanIcon, p.print.cooling_fan_speed);
-                        UpdateFanIconSetting(auxFanIcon, p.print.big_fan1_speed);
-                        UpdateFanIconSetting(chamberFanIcon, p.print.big_fan2_speed);
-
-                        var tray = GetCurrentTray(p.print.ams);
-                        if (tray != null)
-                            UpdateSettingText(filament, tray.tray_type);
-
-                        if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
-                        {
-                            subtask_name = p.print.subtask_name;
-                            GetFileImagePreview($"/cache/{subtask_name}.3mf");
-
-                            var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
-                            UpdateSettingText(printWeight, $"{weight}g");
-                        }
-
-                        CheckStreamStatus(p);
+                        log.LogWarning("OBS not connected or initialized");
+                        break;
                     }
+                    UpdateSettingText(chamberTemp, $"{p.print.chamber_temper} °C");
+                    UpdateSettingText(bedTemp, $"{p.print.bed_temper}");
+
+                    UpdateBedTempIconSetting(bedTempIcon, p.print.bed_target_temper);
+                    UpdateNozzleTempIconSetting(nozzleTempIcon, p.print.nozzle_target_temper);
+
+                    string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
+                    if (p.print.bed_target_temper == 0)
+                    {
+                        targetBedTempStr = "";
+                    }
+
+                    UpdateSettingText(targetBedTemp, targetBedTempStr);
+                    UpdateSettingText(nozzleTemp, $"{p.print.nozzle_temper}");
+
+                    string targetNozzleTempStr = $" / {p.print.nozzle_target_temper} °C";
+                    if (p.print.nozzle_target_temper == 0)
+                    {
+                        targetNozzleTempStr = "";
+                    }
+
+                    UpdateSettingText(targetNozzleTemp, targetNozzleTempStr);
+
+                    string percentMsg = $"{p.print.mc_percent}% complete";
+                    UpdateSettingText(percentComplete, percentMsg);
+                    string layerMsg = $"Layers: {p.print.layer_num}/{p.print.total_layer_num}";
+                    UpdateSettingText(layers, layerMsg);
+
+                    if (lastLayerNum != p.print.layer_num)
+                    {
+                        log.LogInformation("{percentMsg}: {layerMsg}", percentMsg, layerMsg);
+                        lastLayerNum = p.print.layer_num;
+                    }
+
+                    var time = TimeSpan.FromMinutes(p.print.mc_remaining_time);
+                    string timeFormatted = "";
+                    if (time.TotalMinutes > 59)
+                    {
+                        timeFormatted = string.Format("-{0}h{1}m", (int)time.TotalHours, time.Minutes);
+                    }
+                    else
+                    {
+                        timeFormatted = string.Format("-{0}m", time.Minutes);
+                    }
+
+                    UpdateSettingText(timeRemaining, timeFormatted);
+                    UpdateSettingText(subtaskName, $"Model: {p.print.subtask_name}");
+                    UpdateSettingText(stage, $"Stage: {p.print.current_stage_str}");
+
+                    UpdateSettingText(partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
+                    UpdateSettingText(auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
+                    UpdateSettingText(chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+
+                    UpdateFanIconSetting(partFanIcon, p.print.cooling_fan_speed);
+                    UpdateFanIconSetting(auxFanIcon, p.print.big_fan1_speed);
+                    UpdateFanIconSetting(chamberFanIcon, p.print.big_fan2_speed);
+
+                    var tray = GetCurrentTray(p.print.ams);
+                    if (tray != null)
+                    {
+                        UpdateSettingText(filament, tray.tray_type);
+                    }
+
+                    if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != subtask_name)
+                    {
+                        subtask_name = p.print.subtask_name;
+                        DownloadFileImagePreview($"/cache/{subtask_name}.3mf");
+
+                        var weight = ftpService.GetPrintJobWeight($"/cache/{subtask_name}.3mf");
+                        UpdateSettingText(printWeight, $"{weight}g");
+                    }
+
+                    CheckStreamStatus(p);
 
                     break;
 
-                case "mc_print":
-
-                    var mc_print = doc.Deserialize<McPrintMessage>();
-
-                    // not sure how to deserialize this message. maybe later.
-                    //Console.WriteLine($"sequence_id: {mc_print.mc_print.sequence_id}");
-
+                default:
+                    log.LogTrace("Unknown message type: {root}", root);
                     break;
             }
         }
+        catch (ObjectDisposedException)
+        {
+            // Do nothing. This is expected when the service is shutting down.
+        }
+        catch (NullReferenceException ex) when (ex.Message == "Websocket is not initialized")
+        {
+            // Do nothing. This is expected when OBS is not connected or got disposed while processing a message.
+        }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            log.LogError(ex, "Failed to process message");
         }
 
         return Task.CompletedTask;
     }
-
 
     void UpdateSettingText(InputSettings setting, string text)
     {
@@ -246,82 +360,64 @@ public class MqttClientBackgroundService : BackgroundService
         obs.SetInputSettings(setting);
     }
 
-
     void UpdateBedTempIconSetting(InputSettings setting, double value)
     {
-        if (value == 0)
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_bed_temp.png");
-        else
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_bed_temp_active.png");
-
+        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == 0 ? "monitor_bed_temp.png" : "monitor_bed_temp_active.png");
         obs.SetInputSettings(setting);
     }
-
 
     void UpdateNozzleTempIconSetting(InputSettings setting, double value)
     {
-        if (value == 0)
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png");
-        else
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "monitor_nozzle_temp_active.png");
-
+        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == 0 ? "monitor_nozzle_temp.png" : "monitor_nozzle_temp_active.png");
         obs.SetInputSettings(setting);
     }
-
 
     void UpdateFanIconSetting(InputSettings setting, string value)
     {
-        if (value == "0")
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "fan_off.png");
-        else
-            setting.Settings["file"] = Path.Combine(ImageContentRootPath, "fan_icon.png");
-
+        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == "0" ? "fan_off.png" : "fan_icon.png");
         obs.SetInputSettings(setting);
     }
 
-
-    void GetFileImagePreview(string fileName)
+    void DownloadFileImagePreview(string fileName)
     {
-        Console.WriteLine($"getting {fileName} from ftp");
+        using var op = log.BeginScope(nameof(DownloadFileImagePreview));
+        log.LogInformation("getting {fileName} from ftp", fileName);
         try
         {
             var bytes = ftpService.GetFileThumbnail(fileName);
 
             File.WriteAllBytes(Path.Combine(ImageContentRootPath, "preview.png"), bytes);
+            log.LogInformation("got image preview");
 
-            var stream = ftpService.GetPrintJobWeight(fileName);
+            previewImage.Settings["file"] = Path.Combine(ImageContentRootPath, "preview.png");
+            obs.SetInputSettings(previewImage);
+            log.LogInformation("updated image preview");
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            log.LogError(ex, "Failed to get image preview");
         }
     }
-
-
 
     Tray GetCurrentTray(Ams msg)
     {
         if (!string.IsNullOrEmpty(msg?.tray_now))
         {
-            foreach (var ams in msg.ams)
+            var tray = msg.ams
+                .SelectMany(t => t.tray)
+                .Where(t => t.id == msg.tray_now)
+                .FirstOrDefault();
+
+            if (tray != null && string.IsNullOrEmpty(tray.tray_type))
             {
-                foreach (var tray in ams.tray)
-                {
-                    if (tray.id == msg.tray_now)
-                    {
-                        if (string.IsNullOrEmpty(tray.tray_type))
-                        {
-                            tray.tray_type = "Empty";
-                        }
-                        return tray;
-                    }
-                }
+                tray.tray_type = "Empty";
             }
+
+            return tray;
         }
 
         return null;
     }
-
 
     /// <summary>
     /// Checks the status of the obs stream and stops it if the print is complete
@@ -329,91 +425,40 @@ public class MqttClientBackgroundService : BackgroundService
     /// <param name="p">The PrintMessage from MQTT</param>
     void CheckStreamStatus(PrintMessage p)
     {
-        var status = obs.GetStreamStatus();
-
-        var percent = p.print.mc_percent;
-
-        if (percent == 100 && status.IsActive)
+        if (p.print.mc_percent == 100 || p.print.current_stage == PrintStage.Idle)
         {
-            obs.StopStream();
+            log.LogInformation("Print complete!");
+            if (obsSettings.StopStreamOnPrintComplete || appSettings.ExitOnIdle)
+            {
+                // TODO this feels a little ugly...
+                var task = Task.Run(() => Task.Delay(5000));
+                if (obsSettings.StopStreamOnPrintComplete)
+                {
+                    log.LogInformation("Stopping stream in 5s");
+                    task = task.ContinueWith(_ =>
+                    {
+                        if (obs.GetStreamStatus().IsActive)
+                        {
+                            obs.StopStream();
+                        }
+                    });
+                }
+                if (appSettings.ExitOnIdle)
+                {
+                    log.LogInformation("Exiting in 5s");
+                    task = task.ContinueWith(_ => hostLifetime.StopApplication());
+                }
+            }
         }
     }
 
-
-
     /// <summary>
-    /// Do this once, and when they are created then don't run again.
+    /// Utility method for getting scene items
     /// </summary>
-    void InitSceneInputs()
+    void PrintSceneItems()
     {
-        GetSceneItems();
+        log.LogInformation("Video settings:\n{settings}", JsonConvert.SerializeObject(obs.GetVideoSettings(), Formatting.Indented));
 
-        // ===========================================
-        // BambuStreamSource
-        // ===========================================
-        var bambuStream = new JObject
-            {
-                {"ffmpeg_options", "protocol_whitelist=file,udp,rtp" },
-                {"hw_decode", false },
-                {"input", $"file:{settings.pathToSDP}" },
-                {"is_local_file", false },
-            };
-
-        obs.CreateInput("BambuStream", "BambuStreamSource", "ffmpeg_source", bambuStream, true);
-
-        // ===========================================
-        // ColorSource
-        // ===========================================
-        var colorSource = new JObject
-            {
-                {"color", 4278190080},
-                {"height", 130},
-                {"width", 1920}
-            };
-
-        var newSceneId = obs.CreateInput("BambuStream", "ColorSource", "color_source_v3", colorSource, true);
-
-        var transform = new JObject
-            {
-                { "positionX", 0 },
-                { "positionY", 949 }
-             };
-
-        obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
-
-        // ============================================
-        // Text Inputs
-        // ============================================
-        CreateTextInput("TargetBedTemp", 331, 1024);
-        CreateTextInput("PrintWeight", 1303, 1021);
-        CreateTextInput("ChamberTemp", 63, 1025);
-        CreateTextInput("BedTemp", 295, 1024);
-        CreateTextInput("NozzleTemp", 544, 1025);
-        CreateTextInput("PercentComplete", 1598, 1023);
-        CreateTextInput("Layers", 1681, 972);
-        CreateTextInput("TimeRemaining", 1797, 1040);
-        CreateTextInput("SubtaskName", 879, 986);
-        CreateTextInput("Stage", 888, 1046);
-        CreateTextInput("PartFan", 58, 971);
-        CreateTextInput("AuxFan", 298, 971);
-        CreateTextInput("ChamberFan", 540, 971);
-        CreateTextInput("Filament", 1437, 1022);
-        CreateTextInput("TargetNozzleTemp", 597, 1025);
-
-        CreateImageInput("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 248, 969);
-        CreateImageInput("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 492, 1025);
-        CreateImageInput("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 243, 1025);
-        CreateImageInput("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021);
-        CreateImageInput("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1732, 1016);
-        CreateImageInput("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1254, 1021);
-        CreateImageInput("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 494, 968);
-        CreateImageInput("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 967);
-        CreateImageInput("PreviewImage", Path.Combine(ImageContentRootPath, "preview.png"), 1667, 105);
-    }
-
-
-    void GetSceneItems()
-    {
         var list = obs.GetInputList();
 
         foreach (var input in list)
@@ -425,69 +470,14 @@ public class MqttClientBackgroundService : BackgroundService
             {
                 int itemId = obs.GetSceneItemId(scene, source, 0);
                 var transform = obs.GetSceneItemTransform(scene, itemId);
-                Console.WriteLine($"{input.InputKind} {source} {transform.X}, {transform.Y}");
+                var settings = obs.GetInputSettings(source);
+                log.LogInformation("{inputKind} {source}:\n{transform}\nSettings:\n{settings}", input.InputKind, source, JsonConvert.SerializeObject(transform, Formatting.Indented), settings.Settings.ToString(Formatting.Indented));
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                log.LogTrace(ex, "Failed to get scene item {source}", source);
             }
         }
     }
-
-
-    void CreateTextInput(string inputName, decimal positionX, decimal positionY)
-    {
-        JObject itemData = new JObject
-            {
-                { "text", "test" },
-                { "font", new JObject
-                    {
-                        { "face", "Arial" },
-                        { "size", 36 },
-                        { "style", "regular" }
-                    }
-                }
-            };
-
-        var newSceneId = obs.CreateInput("BambuStream", inputName, "text_gdiplus_v2", itemData, true);
-
-        var transform = new JObject
-            {
-                { "positionX", positionX },
-                { "positionY", positionY }
-             };
-
-        obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
-    }
-
-
-    void CreateImageInput(string inputName, string icon, decimal positionX, decimal positionY)
-    {
-        var imageInput = new JObject
-        {
-            {"file", icon },
-            {"linear_alpha", true },
-            {"unload", true }
-        };
-
-        var newSceneId = obs.CreateInput("BambuStream", inputName, "image_source", imageInput, true);
-
-        var transform = new JObject
-        {
-            { "positionX", positionX },
-            { "positionY", positionY }
-        };
-
-        obs.SetSceneItemTransform("BambuStream", newSceneId, transform);
-    }
-
-
-    public override async Task StopAsync(CancellationToken stoppingToken)
-    {
-        await mqttClient.DisconnectAsync();
-        obs.Disconnect();
-        await base.StopAsync(stoppingToken);
-    }
-
 }
 

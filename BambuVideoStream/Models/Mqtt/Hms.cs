@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace BambuVideoStream.Models.Mqtt;
 
-namespace BambuVideoStream
+public class Hms
 {
-    public class Hms
-    {
-        public int attr { get; set; }
-        public int code { get; set; }
-    }
+    public int attr { get; set; }
+    public int code { get; set; }
 }

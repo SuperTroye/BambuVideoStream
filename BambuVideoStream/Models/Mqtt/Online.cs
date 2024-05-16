@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace BambuVideoStream.Models.Mqtt;
 
-namespace BambuVideoStream
+public class Online
 {
-    public class Online
-    {
-        public bool ahb { get; set; }
-        public bool rfid { get; set; }
-    }
+    public bool ahb { get; set; }
+    public bool rfid { get; set; }
 }

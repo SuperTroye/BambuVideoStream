@@ -1,40 +1,54 @@
-﻿using System.IO.Compression;
+﻿using System;
 using System.IO;
-using WinSCP;
-using Microsoft.Extensions.Options;
-using System;
+using System.IO.Compression;
+using System.Threading;
 using System.Xml.Linq;
 using System.Xml.XPath;
+using BambuVideoStream.Models;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using WinSCP;
 
 
-namespace BambuVideoStream
+namespace BambuVideoStream;
+
+public class FtpService
 {
-    public class FtpService
+    readonly ILogger<FtpService> log;
+    BambuSettings settings;
+    SessionOptions sessionOptions;
+    CancellationToken ct;
+
+    public FtpService(
+        IOptions<BambuSettings> options,
+        ILogger<FtpService> logger,
+        IHostApplicationLifetime lifetime)
     {
-        BambuSettings settings;
-        SessionOptions sessionOptions;
+        ct = lifetime.ApplicationStopping;
+        settings = options.Value;
 
-        public FtpService(IOptions<BambuSettings> options)
+        sessionOptions = new SessionOptions
         {
-            settings = options.Value;
+            Protocol = Protocol.Ftp,
+            HostName = settings.IpAddress,
+            PortNumber = 990,
+            UserName = settings.Username,
+            Password = settings.Password,
+            FtpSecure = FtpSecure.Implicit,
+            GiveUpSecurityAndAcceptAnyTlsHostCertificate = true
+        };
 
-            sessionOptions = new SessionOptions
-            {
-                Protocol = Protocol.Ftp,
-                HostName = settings.ipAddress,
-                PortNumber = 990,
-                UserName = settings.username,
-                Password = settings.password,
-                FtpSecure = FtpSecure.Implicit,
-                GiveUpSecurityAndAcceptAnyTlsHostCertificate = true
-            };
-        }
+        log = logger;
+    }
 
-
-
-        public RemoteFileInfoCollection ListDirectory()
+    public RemoteFileInfoCollection ListDirectory()
+    {
+        try
         {
+            ct.ThrowIfCancellationRequested();
             using (Session session = new Session())
+            using (ct.Register(session.Abort))
             {
                 session.Open(sessionOptions);
 
@@ -43,79 +57,89 @@ namespace BambuVideoStream
                 return directory.Files;
             }
         }
-
-
-
-
-        public byte[] GetFileThumbnail(string filename)
+        catch (OperationCanceledException e)
         {
+            throw new ObjectDisposedException($"{nameof(FtpService)} is disposed", e);
+        }
+    }
+
+    public byte[] GetFileThumbnail(string filename)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            using var file = new MemoryStream();
+            using (var session = new Session())
+            {
+                session.Open(sessionOptions);
+
+                using var stream = session.GetFile(filename);
+                stream.CopyToAsync(file, ct).Wait(ct);
+            }
+
+            file.Position = 0;
+            ct.ThrowIfCancellationRequested();
+            using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+
+            string previewFileName = "Metadata/plate_1.png";
+            if (filename.Contains("plate_2"))
+            {
+                previewFileName = "Metadata/plate_2.png";
+            }
+
+            ct.ThrowIfCancellationRequested();
+            using var entryStream = archive.GetEntry(previewFileName).Open();
+            ct.ThrowIfCancellationRequested();
+
+            using var outputStream = new MemoryStream();
+            entryStream.CopyTo(outputStream);
+            return outputStream.ToArray();
+        }
+        catch (OperationCanceledException e)
+        {
+           throw new ObjectDisposedException($"{nameof(FtpService)} is disposed", e);
+        }
+    }
+
+    public string GetPrintJobWeight(string filename)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            using var file = new MemoryStream();
             using (Session session = new Session())
             {
                 session.Open(sessionOptions);
 
-                using (var stream = session.GetFile(filename))
-                {
-                    using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
-                    {
-                        string previewFileName = "Metadata/plate_1.png";
-
-                        if (filename.Contains("plate_2"))
-                        {
-                            previewFileName = "Metadata/plate_2.png";
-                        }
-
-                        using (var entryStream = archive.GetEntry(previewFileName).Open())
-                        {
-                            using (var memoryStream = new MemoryStream())
-                            {
-                                entryStream.CopyTo(memoryStream);
-                                //Bitmap bmp = new Bitmap(entryStream);
-                                //var croppedBitmap = ImageProccesingTools.CropUnwantedBackground(bmp);
-                                //croppedBitmap.Save(memoryStream, ImageFormat.Bmp);
-                                return memoryStream.ToArray();
-                            }
-                        }
-                    }
-                }
+                using var stream = session.GetFile(filename);
+                stream.CopyToAsync(file, ct).Wait(ct);
             }
+
+            file.Position = 0;
+            ct.ThrowIfCancellationRequested();
+            using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+
+            string configFileName = "Metadata/slice_info.config";
+
+            ct.ThrowIfCancellationRequested();
+            using var reader = new StreamReader(archive.GetEntry(configFileName).Open());
+            ct.ThrowIfCancellationRequested();
+            string xml = reader.ReadToEnd();
+
+            var doc = XDocument.Parse(xml);
+            var filamentNode = doc.XPathSelectElement("//filament");
+            var weight = filamentNode.Attribute("used_g").Value;
+            return weight;
         }
-
-
-
-        public string GetPrintJobWeight(string filename)
+        catch (OperationCanceledException e)
         {
-            try
-            {
-                using (Session session = new Session())
-                {
-                    session.Open(sessionOptions);
-
-                    using (Stream stream = session.GetFile(filename))
-                    {
-                        using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Read))
-                        {
-                            string configFileName = "Metadata/slice_info.config";
-
-                            using (StreamReader reader = new StreamReader(archive.GetEntry(configFileName).Open()))
-                            {
-                                string xml = reader.ReadToEnd();
-
-                                var doc = XDocument.Parse(xml);
-                                var filamenNode = doc.XPathSelectElement("//filament");
-                                var weight = filamenNode.Attribute("used_g").Value;
-                                return weight;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-
-            return null;
+            throw new ObjectDisposedException($"{nameof(FtpService)} is disposed", e);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Error getting print job weight");
         }
 
+        return null;
     }
 }
