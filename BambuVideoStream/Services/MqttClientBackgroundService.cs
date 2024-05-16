@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Security.Authentication;
@@ -37,6 +38,7 @@ public class MqttClientBackgroundService : BackgroundService
     readonly MqttClientSubscribeOptions mqttSubscribeOptions;
     readonly OBSWebsocket obs;
     readonly FtpService ftpService;
+    readonly ConcurrentQueue<Action> queuedOperations = new();
 
     bool obsInitialized;
     InputSettings chamberTemp;
@@ -64,6 +66,7 @@ public class MqttClientBackgroundService : BackgroundService
     string subtask_name;
 
     int lastLayerNum;
+    PrintStage? lastPrintStage;
 
     public MqttClientBackgroundService(
         FtpService ftpService,
@@ -403,17 +406,18 @@ public class MqttClientBackgroundService : BackgroundService
     /// <param name="p">The PrintMessage from MQTT</param>
     void CheckStreamStatus(PrintMessage p)
     {
-        if (p.print.mc_percent == 100 || p.print.current_stage == PrintStage.Idle)
+        // Shutdown the stream if the print is complete
+        if (queuedOperations.Count == 0)
         {
-            log.LogInformation("Print complete!");
-            if (obsSettings.StopStreamOnPrintComplete || appSettings.ExitOnIdle)
+            if (p.print.current_stage == PrintStage.Idle &&
+                lastPrintStage != null &&
+                lastPrintStage != PrintStage.Idle)
             {
-                // TODO this feels a little ugly...
-                var task = Task.Run(() => Task.Delay(5000));
-                if (obsSettings.StopStreamOnPrintComplete)
+                log.LogInformation("Print complete!");
+                if (obsSettings.StopStreamOnPrinterIdle)
                 {
                     log.LogInformation("Stopping stream in 5s");
-                    task = task.ContinueWith(_ =>
+                    queuedOperations.Enqueue(() =>
                     {
                         if (obs.GetStreamStatus().IsActive)
                         {
@@ -421,13 +425,38 @@ public class MqttClientBackgroundService : BackgroundService
                         }
                     });
                 }
-                if (appSettings.ExitOnIdle)
+            }
+            if (p.print.current_stage == PrintStage.Idle &&
+                appSettings.ExitOnIdle)
+            {
+                log.LogInformation("Printer is idle. Exiting in 5s.");
+                queuedOperations.Enqueue(() => hostLifetime.StopApplication());
+            }
+
+            if (queuedOperations.Count > 0)
+            {
+                Task.Run(async () =>
                 {
-                    log.LogInformation("Exiting in 5s");
-                    task = task.ContinueWith(_ => hostLifetime.StopApplication());
-                }
+                    await Task.Delay(5000);
+                    while (queuedOperations.TryDequeue(out var action))
+                    {
+                        action();
+                    }
+                });
             }
         }
+
+        // Start the stream if the printer has resumed printing
+        if (queuedOperations.Count == 0 &&
+            p.print.current_stage != PrintStage.Idle &&
+            obsSettings.StartStreamOnStartup &&
+            !obs.GetStreamStatus().IsActive)
+        {
+            log.LogInformation("Printer has resumed printing. Starting stream.");
+            obs.StartStream();
+        }
+
+        lastPrintStage = p.print.current_stage;
     }
 
     /// <summary>

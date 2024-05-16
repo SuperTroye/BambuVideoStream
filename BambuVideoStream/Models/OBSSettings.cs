@@ -9,7 +9,7 @@ public class OBSSettings
     public string BambuScene { get; set; }
     public string BambuStreamSource { get; set; }
     public bool StartStreamOnStartup { get; set; }
-    public bool StopStreamOnPrintComplete { get; set; }
+    public bool StopStreamOnPrinterIdle { get; set; }
     public bool ForceCreateInputs { get; set; }
     public bool LockInputs { get; set; }
 
