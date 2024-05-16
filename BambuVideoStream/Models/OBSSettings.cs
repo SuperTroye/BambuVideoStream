@@ -1,6 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
-
-namespace BambuVideoStream.Models;
+﻿namespace BambuVideoStream.Models;
 
 public class OBSSettings
 {
@@ -12,27 +10,4 @@ public class OBSSettings
     public bool StopStreamOnPrinterIdle { get; set; }
     public bool ForceCreateInputs { get; set; }
     public bool LockInputs { get; set; }
-
-    public string TextInputType { get; set; }
-    public string ImageInputType { get; set; }
-    public string ColorInputType { get; set; }
-    public string VideoInputType { get; set; }
-
-    public string FfmpegOptions { get; set; }
-
-    public OutputDef Output { get; set; }
-
-    public class OutputDef
-    {
-        public decimal VideoWidth { get; set; }
-        public decimal VideoHeight { get; set; }
-    }
-
-    public class InputDef
-    {
-        public string Name { get; set; }
-        public string Type { get; set; }
-        public JObject Data { get; set; }
-        public JObject Transform { get; set; }
-    }
 }

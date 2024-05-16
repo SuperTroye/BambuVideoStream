@@ -17,12 +17,12 @@ using MQTTnet.Client;
 using Newtonsoft.Json;
 using OBSWebsocketDotNet.Communication;
 using OBSWebsocketDotNet.Types;
+using static BambuVideoStream.Constants.OBS;
 
 namespace BambuVideoStream;
 
 public class MqttClientBackgroundService : BackgroundService
 {
-    private static readonly string ImageContentRootPath = Path.Combine(AppContext.BaseDirectory, "Images");
     private readonly ILogger<MqttClientBackgroundService> log;
     private readonly IHostApplicationLifetime hostLifetime;
 
@@ -167,35 +167,35 @@ public class MqttClientBackgroundService : BackgroundService
             // ===========================================
             // Text sources
             // ===========================================
-            this.chamberTemp = await this.obs.EnsureTextInputSettingsAsync("ChamberTemp", 71, 1029, z_index++);
-            this.bedTemp = await this.obs.EnsureTextInputSettingsAsync("BedTemp", 277, 1029, z_index++);
-            this.targetBedTemp = await this.obs.EnsureTextInputSettingsAsync("TargetBedTemp", 313, 1029, z_index++);
-            this.nozzleTemp = await this.obs.EnsureTextInputSettingsAsync("NozzleTemp", 527, 1028, z_index++);
-            this.targetNozzleTemp = await this.obs.EnsureTextInputSettingsAsync("TargetNozzleTemp", 580, 1028, z_index++);
-            this.percentComplete = await this.obs.EnsureTextInputSettingsAsync("PercentComplete", 1510, 1022, z_index++);
-            this.layers = await this.obs.EnsureTextInputSettingsAsync("Layers", 1652, 972, z_index++);
-            this.timeRemaining = await this.obs.EnsureTextInputSettingsAsync("TimeRemaining", 1791, 1024, z_index++);
-            this.subtaskName = await this.obs.EnsureTextInputSettingsAsync("SubtaskName", 838, 971, z_index++);
-            this.stage = await this.obs.EnsureTextInputSettingsAsync("Stage", 842, 1019, z_index++);
-            this.partFan = await this.obs.EnsureTextInputSettingsAsync("PartFan", 58, 971, z_index++);
-            this.auxFan = await this.obs.EnsureTextInputSettingsAsync("AuxFan", 277, 971, z_index++);
-            this.chamberFan = await this.obs.EnsureTextInputSettingsAsync("ChamberFan", 521, 971, z_index++);
-            this.filament = await this.obs.EnsureTextInputSettingsAsync("Filament", 1437, 1022, z_index++);
-            this.printWeight = await this.obs.EnsureTextInputSettingsAsync("PrintWeight", 1303, 1021, z_index++);
+            this.chamberTemp = await this.obs.EnsureTextInputSettingsAsync(ChamberTempInput, z_index++);
+            this.bedTemp = await this.obs.EnsureTextInputSettingsAsync(BedTempInput, z_index++);
+            this.targetBedTemp = await this.obs.EnsureTextInputSettingsAsync(TargetBedTempInput, z_index++);
+            this.nozzleTemp = await this.obs.EnsureTextInputSettingsAsync(NozzleTempInput, z_index++);
+            this.targetNozzleTemp = await this.obs.EnsureTextInputSettingsAsync(TargetNozzleTempInput, z_index++);
+            this.percentComplete = await this.obs.EnsureTextInputSettingsAsync(PercentCompleteInput, z_index++);
+            this.layers = await this.obs.EnsureTextInputSettingsAsync(LayersInput, z_index++);
+            this.timeRemaining = await this.obs.EnsureTextInputSettingsAsync(TimeRemainingInput, z_index++);
+            this.subtaskName = await this.obs.EnsureTextInputSettingsAsync(SubtaskNameInput, z_index++);
+            this.stage = await this.obs.EnsureTextInputSettingsAsync(StageInput, z_index++);
+            this.partFan = await this.obs.EnsureTextInputSettingsAsync(PartFanInput, z_index++);
+            this.auxFan = await this.obs.EnsureTextInputSettingsAsync(AuxFanInput, z_index++);
+            this.chamberFan = await this.obs.EnsureTextInputSettingsAsync(ChamberFanInput, z_index++);
+            this.filament = await this.obs.EnsureTextInputSettingsAsync(FilamentInput, z_index++);
+            this.printWeight = await this.obs.EnsureTextInputSettingsAsync(PrintWeightInput, z_index++);
 
             // ===========================================
             // Image sources
             // ===========================================
-            this.nozzleTempIcon = await this.obs.EnsureImageInputSettingsAsync("NozzleTempIcon", Path.Combine(ImageContentRootPath, "monitor_nozzle_temp.png"), 471, 1025, 1m, z_index++);
-            this.bedTempIcon = await this.obs.EnsureImageInputSettingsAsync("BedTempIcon", Path.Combine(ImageContentRootPath, "monitor_bed_temp.png"), 222, 1025, 1m, z_index++);
-            this.partFanIcon = await this.obs.EnsureImageInputSettingsAsync("PartFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 10, 969, 1m + (2m / 3m), z_index++);
-            this.auxFanIcon = await this.obs.EnsureImageInputSettingsAsync("AuxFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 227, 969, 1m + (2m / 3m), z_index++);
-            this.chamberFanIcon = await this.obs.EnsureImageInputSettingsAsync("ChamberFanIcon", Path.Combine(ImageContentRootPath, "fan_off.png"), 475, 969, 1m + (2m / 3m), z_index++);
-            this.previewImage = await this.obs.EnsureImageInputSettingsAsync("PreviewImage", Path.Combine(ImageContentRootPath, "preview_placeholder.png"), 1667, 0, 0.5m, z_index++);
+            this.nozzleTempIcon = await this.obs.EnsureImageInputSettingsAsync(NozzleTempIconInput, z_index++);
+            this.bedTempIcon = await this.obs.EnsureImageInputSettingsAsync(BedTempIconInput, z_index++);
+            this.partFanIcon = await this.obs.EnsureImageInputSettingsAsync(PartFanIconInput, z_index++);
+            this.auxFanIcon = await this.obs.EnsureImageInputSettingsAsync(AuxFanIconInput, z_index++);
+            this.chamberFanIcon = await this.obs.EnsureImageInputSettingsAsync(ChamberFanIconInput, z_index++);
+            this.previewImage = await this.obs.EnsureImageInputSettingsAsync(PreviewImageInput, z_index++);
             // Static image sources
-            await this.obs.EnsureImageInputSettingsAsync("ChamberTempIcon", Path.Combine(ImageContentRootPath, "monitor_frame_temp.png"), 9, 1021, 1m, z_index++);
-            await this.obs.EnsureImageInputSettingsAsync("TimeIcon", Path.Combine(ImageContentRootPath, "monitor_tasklist_time.png"), 1730, 1016, 1m, z_index++);
-            await this.obs.EnsureImageInputSettingsAsync("FilamentIcon", Path.Combine(ImageContentRootPath, "filament.png"), 1250, 1017, 1m, z_index++);
+            await this.obs.EnsureImageInputSettingsAsync(ChamberTempIconInput, z_index++);
+            await this.obs.EnsureImageInputSettingsAsync(TimeIconInput, z_index++);
+            await this.obs.EnsureImageInputSettingsAsync(FilamentIconInput, z_index++);
 
 
             this.obsInitialized = true;

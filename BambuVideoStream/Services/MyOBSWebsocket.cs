@@ -113,7 +113,7 @@ public class MyOBSWebsocket(
         // Wait for stream to start
         while (base.GetMediaInputStatus(BambuStreamSource).State != MediaState.OBS_MEDIA_STATE_PLAYING)
         {
-            this.log.LogInformation("Waiting for stream to start...");
+            this.log.LogInformation("Waiting for stream to start... (Make sure you enabled streaming in Bambu Studio)");
             await Task.Delay(1000);
         }
 
@@ -126,8 +126,8 @@ public class MyOBSWebsocket(
             { "scaleY", 1.0 },
             { "boundsType", "OBS_BOUNDS_SCALE_INNER" },
             { "boundsAlignment", 0 },
-            { "boundsHeight", this.obsSettings.Output.VideoHeight },
-            { "boundsWidth", this.obsSettings.Output.VideoWidth },
+            { "boundsHeight", VideoHeight },
+            { "boundsWidth", VideoWidth },
         };
         base.SetSceneItemTransform(BambuScene, id, transform);
 
@@ -190,16 +190,14 @@ public class MyOBSWebsocket(
     }
 
     public async Task<InputSettings> EnsureTextInputSettingsAsync(
-        string sourceName,
-        decimal defaultPositionX,
-        decimal defaultPositionY,
+        InitialInputSettings inputSettings,
         int zIndex)
     {
-        if (this.InputExists(sourceName, out var input))
+        if (this.InputExists(inputSettings.Name, out var input))
         {
             if (this.obsSettings.ForceCreateInputs)
             {
-                base.RemoveInput(sourceName);
+                base.RemoveInput(inputSettings.Name);
             }
             else
             {
@@ -207,7 +205,7 @@ public class MyOBSWebsocket(
             }
         }
 
-        this.log.LogInformation("Creating text source {sourceName}", sourceName);
+        this.log.LogInformation("Creating text source {sourceName}", inputSettings.Name);
 
         JObject itemData = new JObject
         {
@@ -220,12 +218,12 @@ public class MyOBSWebsocket(
                 }
             }
         };
-        var id = base.CreateInput(BambuScene, sourceName, TextInputType, itemData, true);
+        var id = base.CreateInput(BambuScene, inputSettings.Name, TextInputType, itemData, true);
 
         var transform = new JObject
         {
-            { "positionX", defaultPositionX },
-            { "positionY", defaultPositionY }
+            { "positionX", inputSettings.DefaultPositionX },
+            { "positionY", inputSettings.DefaultPositionY }
         };
         base.SetSceneItemTransform(BambuScene, id, transform);
 
@@ -237,28 +235,24 @@ public class MyOBSWebsocket(
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
-        return base.GetInputSettings(sourceName);
+        return base.GetInputSettings(inputSettings.Name);
     }
 
     public async Task<InputSettings> EnsureImageInputSettingsAsync(
-        string sourceName,
-        string icon,
-        decimal defaultPositionX,
-        decimal defaultPositionY,
-        decimal defaultScaleFactor,
+        InitialIconSettings inputSettings,
         int zIndex)
     {
-        if (this.InputExists(sourceName, out var input))
+        if (this.InputExists(inputSettings.Name, out var input))
         {
             if (this.obsSettings.ForceCreateInputs)
             {
-                base.RemoveInput(sourceName);
+                base.RemoveInput(inputSettings.Name);
             }
             else
             {
-                if (input.Settings["file"].Value<string>() != icon)
+                if (input.Settings["file"].Value<string>() != inputSettings.Icon)
                 {
-                    input.Settings["file"] = icon;
+                    input.Settings["file"] = inputSettings.Icon;
                     base.SetInputSettings(input);
                     await Task.Delay(BackoffDelay);
                 }
@@ -266,22 +260,22 @@ public class MyOBSWebsocket(
             }
         }
 
-        this.log.LogInformation("Creating icon source {sourceName}", sourceName);
+        this.log.LogInformation("Creating icon source {sourceName}", inputSettings.Name);
 
         var imageInput = new JObject
         {
-            {"file", icon },
+            {"file", inputSettings.Icon },
             {"linear_alpha", true },
             {"unload", true }
         };
-        var id = base.CreateInput(BambuScene, sourceName, ImageInputType, imageInput, true);
+        var id = base.CreateInput(BambuScene, inputSettings.Name, ImageInputType, imageInput, true);
 
         var transform = new JObject
         {
-            { "positionX", defaultPositionX },
-            { "positionY", defaultPositionY },
-            { "scaleX", defaultScaleFactor },
-            { "scaleY", defaultScaleFactor }
+            { "positionX", inputSettings.DefaultPositionX },
+            { "positionY", inputSettings.DefaultPositionY },
+            { "scaleX", inputSettings.DefaultScaleFactor },
+            { "scaleY", inputSettings.DefaultScaleFactor }
         };
         base.SetSceneItemTransform(BambuScene, id, transform);
 
@@ -293,6 +287,6 @@ public class MyOBSWebsocket(
 
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
-        return base.GetInputSettings(sourceName);
+        return base.GetInputSettings(inputSettings.Name);
     }
 }
