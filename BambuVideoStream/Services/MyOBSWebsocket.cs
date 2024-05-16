@@ -39,8 +39,6 @@ public class MyOBSWebsocket(
     public bool SceneExists(string sceneName)
         => base.GetSceneList().Scenes.Any(s => s.Name == sceneName);
 
-    // TODO file issue on this!
-    // Can't customize ObsVideoSettings because all setters are internal
     public async Task EnsureVideoSettingsAsync()
     {
         var settings = base.GetVideoSettings();
@@ -49,10 +47,18 @@ public class MyOBSWebsocket(
         {
             return;
         }
+        else if (base.GetRecordStatus().IsRecording ||
+                 base.GetStreamStatus().IsActive ||
+                 base.GetVirtualCamStatus().IsActive)
+        {
+            throw new InvalidOperationException("Cannot change output video settings while recording, streaming, or virtual camera is active. Output settings must be 1920x1080.");
+        }
 
         this.log.LogInformation("Setting video settings to {width}x{height}", VideoWidth, VideoHeight);
         settings.BaseWidth = settings.OutputWidth = VideoWidth;
         settings.BaseHeight = settings.OutputHeight = VideoHeight;
+        settings.FpsNumerator = 30;
+        settings.FpsDenominator = 1;
         base.SetVideoSettings(settings);
 
         // Sleep before returning as to not overwhelm OBS :)
