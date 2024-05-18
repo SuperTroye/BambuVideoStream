@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BambuVideoStream.Models;
 using BambuVideoStream.Models.Mqtt;
+using BambuVideoStream.Models.Wrappers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,9 +22,12 @@ using static BambuVideoStream.Constants.OBS;
 
 namespace BambuVideoStream;
 
-public class MqttClientBackgroundService : BackgroundService
+/// <summary>
+/// Main background service that connects to the Bambu MQTT server and processes messages to OBS
+/// </summary>
+public class BambuStreamBackgroundService : BackgroundService
 {
-    private readonly ILogger<MqttClientBackgroundService> log;
+    private readonly ILogger<BambuStreamBackgroundService> log;
     private readonly IHostApplicationLifetime hostLifetime;
 
     private readonly AppSettings appSettings;
@@ -44,8 +48,6 @@ public class MqttClientBackgroundService : BackgroundService
     private InputSettings targetBedTemp;
     private InputSettings nozzleTemp;
     private InputSettings targetNozzleTemp;
-    private InputSettings nozzleTempIcon;
-    private InputSettings bedTempIcon;
     private InputSettings percentComplete;
     private InputSettings layers;
     private InputSettings timeRemaining;
@@ -56,22 +58,24 @@ public class MqttClientBackgroundService : BackgroundService
     private InputSettings chamberFan;
     private InputSettings filament;
     private InputSettings printWeight;
-    private InputSettings partFanIcon;
-    private InputSettings auxFanIcon;
-    private InputSettings chamberFanIcon;
-    private InputSettings previewImage;
+    private ToggleIconInputSettings nozzleTempIcon;
+    private ToggleIconInputSettings bedTempIcon;
+    private ToggleIconInputSettings partFanIcon;
+    private ToggleIconInputSettings auxFanIcon;
+    private ToggleIconInputSettings chamberFanIcon;
+    private ToggleIconInputSettings previewImage;
 
     private string subtask_name;
     private int lastLayerNum;
     private PrintStage? lastPrintStage;
 
-    public MqttClientBackgroundService(
+    public BambuStreamBackgroundService(
         FtpService ftpService,
         MyOBSWebsocket obsWebsocket,
         IOptions<BambuSettings> bambuOptions,
         IOptions<OBSSettings> obsOptions,
         IOptions<AppSettings> appOptions,
-        ILogger<MqttClientBackgroundService> logger,
+        ILogger<BambuStreamBackgroundService> logger,
         IHostApplicationLifetime hostLifetime)
     {
         this.bambuSettings = bambuOptions.Value;
@@ -107,6 +111,9 @@ public class MqttClientBackgroundService : BackgroundService
         this.hostLifetime = hostLifetime;
     }
 
+    /// <summary>
+    /// Called by the runtime to start the background service.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         this.obs.ConnectAsync(this.obsSettings.WsConnection, this.obsSettings.WsPassword ?? string.Empty);
@@ -142,6 +149,9 @@ public class MqttClientBackgroundService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Called when the OBS Websocket connects, to initialize the scene and inputs
+    /// </summary>
     private async void Obs_Connected(object sender, EventArgs e)
     {
         this.log.LogInformation("connected to OBS WebSocket");
@@ -167,35 +177,35 @@ public class MqttClientBackgroundService : BackgroundService
             // ===========================================
             // Text sources
             // ===========================================
-            this.chamberTemp = await this.obs.EnsureTextInputSettingsAsync(ChamberTempInput, z_index++);
-            this.bedTemp = await this.obs.EnsureTextInputSettingsAsync(BedTempInput, z_index++);
-            this.targetBedTemp = await this.obs.EnsureTextInputSettingsAsync(TargetBedTempInput, z_index++);
-            this.nozzleTemp = await this.obs.EnsureTextInputSettingsAsync(NozzleTempInput, z_index++);
-            this.targetNozzleTemp = await this.obs.EnsureTextInputSettingsAsync(TargetNozzleTempInput, z_index++);
-            this.percentComplete = await this.obs.EnsureTextInputSettingsAsync(PercentCompleteInput, z_index++);
-            this.layers = await this.obs.EnsureTextInputSettingsAsync(LayersInput, z_index++);
-            this.timeRemaining = await this.obs.EnsureTextInputSettingsAsync(TimeRemainingInput, z_index++);
-            this.subtaskName = await this.obs.EnsureTextInputSettingsAsync(SubtaskNameInput, z_index++);
-            this.stage = await this.obs.EnsureTextInputSettingsAsync(StageInput, z_index++);
-            this.partFan = await this.obs.EnsureTextInputSettingsAsync(PartFanInput, z_index++);
-            this.auxFan = await this.obs.EnsureTextInputSettingsAsync(AuxFanInput, z_index++);
-            this.chamberFan = await this.obs.EnsureTextInputSettingsAsync(ChamberFanInput, z_index++);
-            this.filament = await this.obs.EnsureTextInputSettingsAsync(FilamentInput, z_index++);
-            this.printWeight = await this.obs.EnsureTextInputSettingsAsync(PrintWeightInput, z_index++);
+            this.chamberTemp = await this.obs.EnsureTextInputAsync(ChamberTempInitialSettings, z_index++);
+            this.bedTemp = await this.obs.EnsureTextInputAsync(BedTempInitialSettings, z_index++);
+            this.targetBedTemp = await this.obs.EnsureTextInputAsync(TargetBedTempInitialSettings, z_index++);
+            this.nozzleTemp = await this.obs.EnsureTextInputAsync(NozzleTempInitialSettings, z_index++);
+            this.targetNozzleTemp = await this.obs.EnsureTextInputAsync(TargetNozzleTempInitialSettings, z_index++);
+            this.percentComplete = await this.obs.EnsureTextInputAsync(PercentCompleteInitialSettings, z_index++);
+            this.layers = await this.obs.EnsureTextInputAsync(LayersInitialSettings, z_index++);
+            this.timeRemaining = await this.obs.EnsureTextInputAsync(TimeRemainingInitialSettings, z_index++);
+            this.subtaskName = await this.obs.EnsureTextInputAsync(SubtaskNameInitialSettings, z_index++);
+            this.stage = await this.obs.EnsureTextInputAsync(StageInitialSettings, z_index++);
+            this.partFan = await this.obs.EnsureTextInputAsync(PartFanInitialSettings, z_index++);
+            this.auxFan = await this.obs.EnsureTextInputAsync(AuxFanInitialSettings, z_index++);
+            this.chamberFan = await this.obs.EnsureTextInputAsync(ChamberFanInitialSettings, z_index++);
+            this.filament = await this.obs.EnsureTextInputAsync(FilamentInitialSettings, z_index++);
+            this.printWeight = await this.obs.EnsureTextInputAsync(PrintWeightInitialSettings, z_index++);
 
             // ===========================================
             // Image sources
             // ===========================================
-            this.nozzleTempIcon = await this.obs.EnsureImageInputSettingsAsync(NozzleTempIconInput, z_index++);
-            this.bedTempIcon = await this.obs.EnsureImageInputSettingsAsync(BedTempIconInput, z_index++);
-            this.partFanIcon = await this.obs.EnsureImageInputSettingsAsync(PartFanIconInput, z_index++);
-            this.auxFanIcon = await this.obs.EnsureImageInputSettingsAsync(AuxFanIconInput, z_index++);
-            this.chamberFanIcon = await this.obs.EnsureImageInputSettingsAsync(ChamberFanIconInput, z_index++);
-            this.previewImage = await this.obs.EnsureImageInputSettingsAsync(PreviewImageInput, z_index++);
+            this.nozzleTempIcon = await this.obs.EnsureImageInputAsync(NozzleTempIconInitialSettings, z_index++);
+            this.bedTempIcon = await this.obs.EnsureImageInputAsync(BedTempIconInitialSettings, z_index++);
+            this.partFanIcon = await this.obs.EnsureImageInputAsync(PartFanIconInitialSettings, z_index++);
+            this.auxFanIcon = await this.obs.EnsureImageInputAsync(AuxFanIconInitialSettings, z_index++);
+            this.chamberFanIcon = await this.obs.EnsureImageInputAsync(ChamberFanIconInitialSettings, z_index++);
+            this.previewImage = await this.obs.EnsureImageInputAsync(PreviewImageInitialSettings, z_index++);
             // Static image sources
-            await this.obs.EnsureImageInputSettingsAsync(ChamberTempIconInput, z_index++);
-            await this.obs.EnsureImageInputSettingsAsync(TimeIconInput, z_index++);
-            await this.obs.EnsureImageInputSettingsAsync(FilamentIconInput, z_index++);
+            await this.obs.EnsureImageInputAsync(ChamberTempIconInitialSettings, z_index++);
+            await this.obs.EnsureImageInputAsync(TimeIconInitialSettings, z_index++);
+            await this.obs.EnsureImageInputAsync(FilamentIconInitialSettings, z_index++);
 
 
             this.obsInitialized = true;
@@ -212,6 +222,9 @@ public class MqttClientBackgroundService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Called when the OBS Websocket disconnects/fails to connect
+    /// </summary>
     private void Obs_Disconnected(object sender, ObsDisconnectionInfo e)
     {
         this.log.LogWarning("OBS WebSocket disconnected: {reason}", e.DisconnectReason);
@@ -222,6 +235,9 @@ public class MqttClientBackgroundService : BackgroundService
         this.hostLifetime.StopApplication();
     }
 
+    /// <summary>
+    /// Called when the Bambu MQTT client disconnects
+    /// </summary>
     private Task MqttClient_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
     {
         this.log.LogInformation("MQTT disconnected: {reason}", arg.Reason);
@@ -233,6 +249,9 @@ public class MqttClientBackgroundService : BackgroundService
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Main Bambu MQTT message processing method
+    /// </summary>
     private Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
     {
         try
@@ -256,11 +275,11 @@ public class MqttClientBackgroundService : BackgroundService
                         this.log.LogWarning("OBS not connected or initialized");
                         break;
                     }
-                    this.UpdateSettingText(this.chamberTemp, $"{p.print.chamber_temper} °C");
-                    this.UpdateSettingText(this.bedTemp, $"{p.print.bed_temper}");
+                    obs.UpdateText(this.chamberTemp, $"{p.print.chamber_temper} °C");
+                    obs.UpdateText(this.bedTemp, $"{p.print.bed_temper}");
 
-                    this.UpdateBedTempIconSetting(this.bedTempIcon, p.print.bed_target_temper);
-                    this.UpdateNozzleTempIconSetting(this.nozzleTempIcon, p.print.nozzle_target_temper);
+                    obs.SetIconState(this.bedTempIcon, p.print.bed_target_temper == 0);
+                    obs.SetIconState(this.nozzleTempIcon, p.print.nozzle_target_temper == 0);
 
                     string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
                     if (p.print.bed_target_temper == 0)
@@ -268,8 +287,8 @@ public class MqttClientBackgroundService : BackgroundService
                         targetBedTempStr = "";
                     }
 
-                    this.UpdateSettingText(this.targetBedTemp, targetBedTempStr);
-                    this.UpdateSettingText(this.nozzleTemp, $"{p.print.nozzle_temper}");
+                    obs.UpdateText(this.targetBedTemp, targetBedTempStr);
+                    obs.UpdateText(this.nozzleTemp, $"{p.print.nozzle_temper}");
 
                     string targetNozzleTempStr = $" / {p.print.nozzle_target_temper} °C";
                     if (p.print.nozzle_target_temper == 0)
@@ -277,12 +296,12 @@ public class MqttClientBackgroundService : BackgroundService
                         targetNozzleTempStr = "";
                     }
 
-                    this.UpdateSettingText(this.targetNozzleTemp, targetNozzleTempStr);
+                    obs.UpdateText(this.targetNozzleTemp, targetNozzleTempStr);
 
                     string percentMsg = $"{p.print.mc_percent}% complete";
-                    this.UpdateSettingText(this.percentComplete, percentMsg);
+                    obs.UpdateText(this.percentComplete, percentMsg);
                     string layerMsg = $"Layers: {p.print.layer_num}/{p.print.total_layer_num}";
-                    this.UpdateSettingText(this.layers, layerMsg);
+                    obs.UpdateText(this.layers, layerMsg);
 
                     if (this.lastLayerNum != p.print.layer_num)
                     {
@@ -301,22 +320,22 @@ public class MqttClientBackgroundService : BackgroundService
                         timeFormatted = string.Format("-{0}m", time.Minutes);
                     }
 
-                    this.UpdateSettingText(this.timeRemaining, timeFormatted);
-                    this.UpdateSettingText(this.subtaskName, $"Model: {p.print.subtask_name}");
-                    this.UpdateSettingText(this.stage, $"Stage: {p.print.current_stage_str}");
+                    obs.UpdateText(this.timeRemaining, timeFormatted);
+                    obs.UpdateText(this.subtaskName, $"Model: {p.print.subtask_name}");
+                    obs.UpdateText(this.stage, $"Stage: {p.print.current_stage_str}");
 
-                    this.UpdateSettingText(this.partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
-                    this.UpdateSettingText(this.auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
-                    this.UpdateSettingText(this.chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
+                    obs.UpdateText(this.partFan, $"Part: {p.print.GetFanSpeed(p.print.cooling_fan_speed)}%");
+                    obs.UpdateText(this.auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
+                    obs.UpdateText(this.chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
 
-                    this.UpdateFanIconSetting(this.partFanIcon, p.print.cooling_fan_speed);
-                    this.UpdateFanIconSetting(this.auxFanIcon, p.print.big_fan1_speed);
-                    this.UpdateFanIconSetting(this.chamberFanIcon, p.print.big_fan2_speed);
+                    obs.SetIconState(this.partFanIcon, p.print.cooling_fan_speed == "0");
+                    obs.SetIconState(this.auxFanIcon, p.print.big_fan1_speed == "0");
+                    obs.SetIconState(this.chamberFanIcon, p.print.big_fan2_speed == "0");
 
                     var tray = p.print.ams?.GetCurrentTray();
                     if (tray != null)
                     {
-                        this.UpdateSettingText(this.filament, tray.tray_type);
+                        obs.UpdateText(this.filament, tray.tray_type);
                     }
 
                     if (!string.IsNullOrEmpty(p.print.subtask_name) && p.print.subtask_name != this.subtask_name)
@@ -325,7 +344,7 @@ public class MqttClientBackgroundService : BackgroundService
                         this.DownloadFileImagePreview($"/cache/{this.subtask_name}.3mf");
 
                         var weight = this.ftpService.GetPrintJobWeight($"/cache/{this.subtask_name}.3mf");
-                        this.UpdateSettingText(this.printWeight, $"{weight}g");
+                        obs.UpdateText(this.printWeight, $"{weight}g");
                     }
 
                     this.CheckStreamStatus(p);
@@ -353,30 +372,6 @@ public class MqttClientBackgroundService : BackgroundService
         return Task.CompletedTask;
     }
 
-    private void UpdateSettingText(InputSettings setting, string text)
-    {
-        setting.Settings["text"] = text;
-        this.obs.SetInputSettings(setting);
-    }
-
-    private void UpdateBedTempIconSetting(InputSettings setting, double value)
-    {
-        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == 0 ? "monitor_bed_temp.png" : "monitor_bed_temp_active.png");
-        this.obs.SetInputSettings(setting);
-    }
-
-    private void UpdateNozzleTempIconSetting(InputSettings setting, double value)
-    {
-        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == 0 ? "monitor_nozzle_temp.png" : "monitor_nozzle_temp_active.png");
-        this.obs.SetInputSettings(setting);
-    }
-
-    private void UpdateFanIconSetting(InputSettings setting, string value)
-    {
-        setting.Settings["file"] = Path.Combine(ImageContentRootPath, value == "0" ? "fan_off.png" : "fan_icon.png");
-        this.obs.SetInputSettings(setting);
-    }
-
     private void DownloadFileImagePreview(string fileName)
     {
         using var op = this.log.BeginScope(nameof(DownloadFileImagePreview));
@@ -385,11 +380,10 @@ public class MqttClientBackgroundService : BackgroundService
         {
             var bytes = this.ftpService.GetFileThumbnail(fileName);
 
-            File.WriteAllBytes(Path.Combine(ImageContentRootPath, "preview.png"), bytes);
+            File.WriteAllBytes(PreviewImageInitialSettings.DefaultEnabledIconPath, bytes);
             this.log.LogInformation("got image preview");
 
-            this.previewImage.Settings["file"] = Path.Combine(ImageContentRootPath, "preview.png");
-            this.obs.SetInputSettings(this.previewImage);
+            this.obs.SetIconState(this.previewImage, true);
             this.log.LogInformation("updated image preview");
         }
         catch (Exception ex)

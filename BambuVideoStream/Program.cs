@@ -26,7 +26,7 @@ builder.Services.Configure<OBSSettings>(builder.Configuration.GetSection(nameof(
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection(nameof(AppSettings)));
 builder.Services.AddTransient<FtpService>();
 builder.Services.AddTransient<MyOBSWebsocket>();
-builder.Services.AddHostedService<MqttClientBackgroundService>();
+builder.Services.AddHostedService<BambuStreamBackgroundService>();
 
 var host = builder.Build();
 

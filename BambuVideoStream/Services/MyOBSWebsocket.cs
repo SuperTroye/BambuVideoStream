@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using BambuVideoStream.Models;
+using BambuVideoStream.Models.Wrappers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
@@ -12,6 +13,9 @@ using static BambuVideoStream.Constants.OBS;
 
 namespace BambuVideoStream;
 
+/// <summary>
+/// Overload of <see cref="OBSWebsocket"/> that adds additional custom functionality for the application
+/// </summary>
 public class MyOBSWebsocket(
     ILogger<OBSWebsocket> logger,
     IOptions<OBSSettings> obsSettings,
@@ -22,6 +26,10 @@ public class MyOBSWebsocket(
     private readonly OBSSettings obsSettings = obsSettings.Value;
     private readonly BambuSettings bambuSettings = bambuSettings.Value;
 
+    /// <summary>
+    /// Whether an input source with the given name exists.
+    /// </summary>
+    /// <param name="input">If the input exists, contains the input settings</param>
     public bool InputExists(string sourceName, out InputSettings input)
     {
         try
@@ -36,9 +44,15 @@ public class MyOBSWebsocket(
         }
     }
 
+    /// <summary>
+    /// Whether a scene with the given name exists.
+    /// </summary>
     public bool SceneExists(string sceneName)
         => base.GetSceneList().Scenes.Any(s => s.Name == sceneName);
 
+    /// <summary>
+    /// Ensures the output video settings are configured as expected.
+    /// </summary>
     public async Task EnsureVideoSettingsAsync()
     {
         var settings = base.GetVideoSettings();
@@ -65,6 +79,9 @@ public class MyOBSWebsocket(
         await Task.Delay(BackoffDelay);
     }
 
+    /// <summary>
+    /// Ensures an OBS scene named <see cref="BambuScene"/> exists.
+    /// </summary>
     public async Task EnsureBambuSceneAsync()
     {
         if (this.SceneExists(BambuScene))
@@ -80,6 +97,9 @@ public class MyOBSWebsocket(
         await Task.Delay(BackoffDelay);
     }
 
+    /// <summary>
+    /// Creates the Bambu video feed input source if it doesn't exist.
+    /// </summary>
     public async Task EnsureBambuStreamSourceAsync()
     {
         if (this.InputExists(BambuStreamSource, out var _))
@@ -142,6 +162,10 @@ public class MyOBSWebsocket(
         await Task.Delay(BackoffDelay);
     }
 
+    /// <summary>
+    /// Creates the transparent status backdrop if it doesn't exist.
+    /// </summary>
+    /// <returns></returns>
     public async Task EnsureColorSourceAsync()
     {
         const string ColorSource = "ColorSource";
@@ -189,8 +213,11 @@ public class MyOBSWebsocket(
         await Task.Delay(100);
     }
 
-    public async Task<InputSettings> EnsureTextInputSettingsAsync(
-        InitialInputSettings inputSettings,
+    /// <summary>
+    /// Creates a text input source if it doesn't exist.
+    /// </summary>
+    public async Task<InputSettings> EnsureTextInputAsync(
+        InitialTextSettings inputSettings,
         int zIndex)
     {
         if (this.InputExists(inputSettings.Name, out var input))
@@ -238,7 +265,10 @@ public class MyOBSWebsocket(
         return base.GetInputSettings(inputSettings.Name);
     }
 
-    public async Task<InputSettings> EnsureImageInputSettingsAsync(
+    /// <summary>
+    /// Creates an icon input source if it doesn't exist, otherwise updates the existing source with the new icon.
+    /// </summary>
+    public async Task<InputSettings> EnsureImageInputAsync(
         InitialIconSettings inputSettings,
         int zIndex)
     {
@@ -250,9 +280,9 @@ public class MyOBSWebsocket(
             }
             else
             {
-                if (input.Settings["file"].Value<string>() != inputSettings.Icon)
+                if (input.Settings["file"].Value<string>() != inputSettings.DefaultIconPath)
                 {
-                    input.Settings["file"] = inputSettings.Icon;
+                    input.Settings["file"] = inputSettings.DefaultIconPath;
                     base.SetInputSettings(input);
                     await Task.Delay(BackoffDelay);
                 }
@@ -264,7 +294,7 @@ public class MyOBSWebsocket(
 
         var imageInput = new JObject
         {
-            {"file", inputSettings.Icon },
+            {"file", inputSettings.DefaultIconPath },
             {"linear_alpha", true },
             {"unload", true }
         };
@@ -288,5 +318,36 @@ public class MyOBSWebsocket(
         // Sleep before returning as to not overwhelm OBS :)
         await Task.Delay(100);
         return base.GetInputSettings(inputSettings.Name);
+    }
+
+    /// <summary>
+    /// Creates a togglable icon input source if it doesn't exist, otherwise updates the existing source with the "off state" icon.
+    /// </summary>
+    public async Task<ToggleIconInputSettings> EnsureImageInputAsync(
+        InitialToggleIconSettings settings,
+        int zIndex)
+    {
+        var inputSettings = await this.EnsureImageInputAsync((InitialIconSettings)settings, zIndex);
+        return new ToggleIconInputSettings(inputSettings, settings);
+    }
+
+    /// <summary>
+    /// Updates the text of an existing text input source.
+    /// </summary>
+    public void UpdateText(InputSettings setting, string text)
+    {
+        setting.Settings["text"] = text;
+        this.SetInputSettings(setting);
+    }
+
+    /// <summary>
+    /// Sets the icon path of an existing input source based on the state.
+    /// </summary>
+    public void SetIconState(ToggleIconInputSettings settings, bool state)
+    {
+        settings.InputSettings.Settings["file"] = state 
+            ? settings.InitialToggleIconSettings.DefaultEnabledIconPath 
+            : settings.InitialToggleIconSettings.DefaultIconPath;
+        this.SetInputSettings(settings.InputSettings);
     }
 }
