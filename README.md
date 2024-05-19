@@ -15,7 +15,12 @@
 ## Prerequisites
 Instructions for streaming the Bambu webcam with OBS are here: https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera. Before you run this app, you should have the Bambu Studio software and OBS Studio installed and running.
 
-You will need your printer's local IP address, password, and serial number to connect to MQTT. All of this can be found on the printer's LCD screen. The password and IP address can be found in the WiFi settings, and the serial number can be found in the printer's information page.
+You will need your Bambu printer's:
+* Local IP address
+* Password
+* Serial number
+
+...to connect to its MQTT endpoint. All of this can be found on the printer's LCD screen. The password and IP address can be found in the WiFi settings, and the serial number can be found in the printer's information page.
 
 ### First time setup
 1. Download the latest release from the Releases page.		
@@ -33,4 +38,4 @@ You will need your printer's local IP address, password, and serial number to co
 ## Credits
 Much of this work is derived from this thread: https://community.home-assistant.io/t/bambu-lab-x1-x1c-mqtt/489510.
 
-BIG props to the original creator of this project! https://github.com/SuperTroye/BambuVideoStream
+BIG props to the original creator of this project: https://github.com/SuperTroye/BambuVideoStream
