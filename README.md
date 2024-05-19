@@ -31,5 +31,6 @@ You will need your printer's local IP address, password, and serial number to co
 1. Run the BambuVideoStream app!
 
 ## Credits
-
 Much of this work is derived from this thread: https://community.home-assistant.io/t/bambu-lab-x1-x1c-mqtt/489510.
+
+BIG props to the original creator of this project! https://github.com/SuperTroye/BambuVideoStream
