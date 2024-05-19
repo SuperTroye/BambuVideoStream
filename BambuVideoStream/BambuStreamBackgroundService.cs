@@ -156,9 +156,11 @@ public class BambuStreamBackgroundService : BackgroundService
     {
         this.log.LogInformation("connected to OBS WebSocket");
 
-        if (this.appSettings.PrintExistingSceneItemsOnStartup)
+        if (this.appSettings.PrintSceneItemsAndExit)
         {
             this.PrintSceneItems();
+            this.hostLifetime.StopApplication();
+            return;
         }
 
         try

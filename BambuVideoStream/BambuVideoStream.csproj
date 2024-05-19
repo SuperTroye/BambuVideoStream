@@ -9,11 +9,14 @@
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Images\*">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="icon.ico" />
+    <Content Include="../README.md" CopyToOutputDirectory="Always" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FluentFTP" Version="50.0.1" />

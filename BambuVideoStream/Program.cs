@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 var builder = new HostApplicationBuilder(args);
 // Optional config file that can contain user settings
-builder.Configuration.AddJsonFile("BambuVideoStream.json", optional: true);
+builder.Configuration.AddJsonFile("secrets.json", optional: true);
 
 string fileLogFormat = builder.Configuration.GetValue<string>("Logging:File:FileFormat");
 if (!string.IsNullOrEmpty(fileLogFormat))
