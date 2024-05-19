@@ -343,9 +343,9 @@ public class MyOBSWebsocket(
     /// <summary>
     /// Sets the icon path of an existing input source based on the state.
     /// </summary>
-    public void SetIconState(ToggleIconInputSettings settings, bool state)
+    public void SetIconState(ToggleIconInputSettings settings, bool isEnabled)
     {
-        settings.InputSettings.Settings["file"] = state 
+        settings.InputSettings.Settings["file"] = isEnabled 
             ? settings.InitialToggleIconSettings.DefaultEnabledIconPath 
             : settings.InitialToggleIconSettings.DefaultIconPath;
         this.SetInputSettings(settings.InputSettings);
