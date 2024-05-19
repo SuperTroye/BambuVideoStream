@@ -32,7 +32,7 @@ You will need your Bambu printer's:
 
 ## Usage
 1. Open Bambu Studio, navigate to the Device tab, and start streaming. ("Go live")
-1. Open OBS studio, and make sure the [Websocket server is enabled](https://obsproject.com/kb/remote-control-guide).
+1. Open OBS Studio, and make sure the [Websocket server is enabled](https://obsproject.com/kb/remote-control-guide).
 1. Run the BambuVideoStream app!
 
 ## Credits
