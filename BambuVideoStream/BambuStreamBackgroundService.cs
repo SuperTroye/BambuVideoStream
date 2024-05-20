@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using BambuVideoStream.Models;
 using BambuVideoStream.Models.Mqtt;
 using BambuVideoStream.Models.Wrappers;
+using BambuVideoStream.Services;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -76,6 +77,7 @@ public class BambuStreamBackgroundService : BackgroundService
         IOptions<OBSSettings> obsOptions,
         IOptions<AppSettings> appOptions,
         ILogger<BambuStreamBackgroundService> logger,
+        ILogger<MqttClient> mqttLogger,
         IHostApplicationLifetime hostLifetime)
     {
         this.bambuSettings = bambuOptions.Value;
@@ -86,7 +88,7 @@ public class BambuStreamBackgroundService : BackgroundService
         this.obs.Connected += this.Obs_Connected;
         this.obs.Disconnected += this.Obs_Disconnected;
 
-        var mqttFactory = new MqttFactory();
+        var mqttFactory = new MqttFactory(new MqttLogger(mqttLogger));
         this.mqttClient = mqttFactory.CreateMqttClient();
         this.mqttClient.ApplicationMessageReceivedAsync += this.OnMessageReceived;
         this.mqttClient.DisconnectedAsync += this.MqttClient_DisconnectedAsync;
@@ -234,7 +236,10 @@ public class BambuStreamBackgroundService : BackgroundService
         {
             this.log.LogError("OBS WebSocket authentication failed. Check your OBS settings.");
         }
-        this.hostLifetime.StopApplication();
+        if (this.appSettings.ExitOnEndpointDisconnect)
+        {
+            this.hostLifetime.StopApplication();
+        }
     }
 
     /// <summary>
@@ -247,7 +252,10 @@ public class BambuStreamBackgroundService : BackgroundService
         {
             this.log.LogError("MQTT authentication failed. Check your Bambu settings.");
         }
-        this.hostLifetime.StopApplication();
+        if (this.appSettings.ExitOnEndpointDisconnect)
+        {
+            this.hostLifetime.StopApplication();
+        }
         return Task.CompletedTask;
     }
 

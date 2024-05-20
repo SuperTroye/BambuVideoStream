@@ -156,8 +156,8 @@ public class FtpService(
         {
             var level = entry.Severity switch
             {
-                FtpTraceLevel.Warn => LogLevel.Warning,
                 FtpTraceLevel.Error => LogLevel.Error,
+                FtpTraceLevel.Warn => LogLevel.Warning,
                 _ => LogLevel.Trace
             };
             log.Log(level, entry.Exception, "{message}", entry.Message);
