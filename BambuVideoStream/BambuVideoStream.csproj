@@ -22,7 +22,7 @@
     <PackageReference Include="FluentFTP" Version="50.0.1" />
     <PackageReference Include="FluentFTP.GnuTLS" Version="1.0.31" />
     <PackageReference Include="FluentFTP.Logging" Version="1.0.0" />
-    <PackageReference Include="MQTTnet" Version="4.3.4.1084" />
+    <PackageReference Include="MQTTnet" Version="4.3.5.1141" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="3.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
