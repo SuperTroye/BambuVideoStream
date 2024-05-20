@@ -1,35 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace BambuVideoStream.Models.Mqtt;
 
-namespace BambuVideoStream
+public class Ipcam
 {
-    public class Ipcam
-    {
-        /// <summary>
-        /// status
-        /// </summary>
-        public string ipcam_dev { get; set; }
-        public string ipcam_record { get; set; }
-        public string resolution { get; set; }
-        public string timelapse { get; set; }
+    /// <summary>
+    /// status
+    /// </summary>
+    public string ipcam_dev { get; set; }
+    public string ipcam_record { get; set; }
+    public string resolution { get; set; }
+    public string timelapse { get; set; }
 
-
-        public string GetIPCamInfo
+    public string GetIPCamInfo
+        => this.ipcam_dev switch
         {
-            get 
-            {
-                switch (ipcam_dev)
-                {
-                    case "1":
-                        return "On";
-                    case "0":
-                        return "Off";
-                    default:
-                        return ipcam_dev;
-                }
-            }
-        }
-
-
-    }
+            "1" => "On",
+            "0" => "Off",
+            _ => this.ipcam_dev,
+        };
 }

@@ -1,0 +1,82 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Draft release'
+        required: true
+        default: 'false'
+      version:
+        description: 'Version'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+    - name: Generate Semantic Version
+      id: generate_semver
+      if: ${{ !inputs.version }}
+      uses: zwaldowski/semver-release-action@v4
+      with:
+        github_token: ${{ secrets.GITHUBTOKEN }}
+        bump: patch
+        prefix: v
+        dry_run: true
+    - name: Set version output
+      id: set_version
+      run: echo "version=${{ inputs.version || steps.generate_semver.outputs.version }}" >> $GITHUB_OUTPUT
+    - name: Publish Windows
+      run: dotnet publish -r win-x64 /p:Version=${{ steps.set_version.outputs.version }} -o ./publish/win-x64 ./BambuVideoStream
+    - name: Publish Linux
+      run: dotnet publish -r linux-x64 /p:Version=${{ steps.set_version.outputs.version }} -o ./publish/linux-x64 ./BambuVideoStream
+    - name: Publish OSX-x64
+      run: dotnet publish -r osx-x64 /p:Version=${{ steps.set_version.outputs.version }} -o ./publish/osx-x64 ./BambuVideoStream
+    - name: Publish OSX-ARM
+      run: dotnet publish -r osx-arm64 /p:Version=${{ steps.set_version.outputs.version }} -o ./publish/osx-arm64 ./BambuVideoStream
+    # - name: Upload Artifacts
+    #   uses: actions/upload-artifact@v4.3.3
+    #   with:
+    #     # A file, directory or wildcard pattern that describes what to upload
+    #     path: ./publish
+    - name: Zip Artifacts
+      run: |
+        mkdir -p ./release
+        zip -r ./release/win-x64.zip ./publish/win-x64
+        tar -czvf ./release/linux-x64.tar.gz ./publish/linux-x64
+        tar -czvf ./release/osx-x64.tar.gz ./publish/osx-x64
+        tar -czvf ./release/osx-arm64.tar.gz ./publish/osx-arm64
+    - name: Push version tag
+      run: git tag ${{ format('v{0}', steps.set_version.outputs.version) }} && git push origin ${{ format('v{0}', steps.set_version.outputs.version) }}
+    - name: Create GitHub Release
+      uses: ncipollo/release-action@v1.14.0
+      with:
+        artifacts: ./release/*
+        token: ${{ secrets.GITHUBTOKEN }}
+        tag: v${{ steps.set_version.outputs.version }}
+        generateReleaseNotes: true
+        draft: ${{ inputs.draft }}
+        prerelease: false
+        allowUpdates: true

@@ -1,19 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace BambuVideoStream.Models.Mqtt;
 
-namespace BambuVideoStream
+public class McPrintMessage
 {
-    public class McPrintMessage
-    { 
-        public McPrint mc_print { get; set; }
-    }
+    public McPrint mc_print { get; set; }
+}
 
-    public class McPrint
-    {
-        public string command { get; set; }
-        public string param { get; set; }
-        public string sequence_id { get; set; }
-    }
-
-
+public class McPrint
+{
+    public string command { get; set; }
+    public string param { get; set; }
+    public string sequence_id { get; set; }
 }

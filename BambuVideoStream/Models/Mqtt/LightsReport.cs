@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace BambuVideoStream.Models.Mqtt;
 
-namespace BambuVideoStream
+public class LightsReport
 {
-    public class LightsReport
-    {
-        public string mode { get; set; }
-        public string node { get; set; }
-    }
+    public string mode { get; set; }
+    public string node { get; set; }
 }

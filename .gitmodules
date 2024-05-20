@@ -1,0 +1,4 @@
+[submodule "obs-websocket-dotnet"]
+	path = obs-websocket-dotnet
+	url = https://github.com/DrEsteban/obs-websocket-dotnet
+	branch = master
