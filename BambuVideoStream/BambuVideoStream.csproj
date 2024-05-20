@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
-    <Version>1.0.0</Version>
+    <Version>1.1</Version>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -10,11 +10,11 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
     <ApplicationIcon>icon.ico</ApplicationIcon>
+    <!-- This application will generally be long-running -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="Images\*">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="Images\*" />
     <Content Include="icon.ico" />
     <Content Include="../README.md" CopyToOutputDirectory="Always" />
   </ItemGroup>

@@ -89,7 +89,8 @@ public static class Constants
 
         #region Icon inputs
 
-        private static string GetPath(string filename) => Path.Combine(Path.Combine(AppContext.BaseDirectory, "Images"), filename);
+        public static readonly string ImageDir = Path.Combine(Path.Combine(AppContext.BaseDirectory, "Images"));
+        private static string GetPath(string filename) => Path.Combine(ImageDir, filename);
         public static readonly InitialToggleIconSettings NozzleTempIconInitialSettings =
             new("NozzleTempIcon",
                 defaultPositionX: 471,
