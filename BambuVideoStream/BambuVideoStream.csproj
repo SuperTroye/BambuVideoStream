@@ -7,7 +7,6 @@
     <Nullable>disable</Nullable>
     <UserSecretsId>f76d68f2-da99-4ef8-a6ca-13e366f0334c</UserSecretsId>
     <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <!-- This application will generally be long-running -->

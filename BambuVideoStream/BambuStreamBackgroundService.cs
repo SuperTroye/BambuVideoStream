@@ -288,8 +288,8 @@ public class BambuStreamBackgroundService : BackgroundService
                     obs.UpdateText(this.chamberTemp, $"{p.print.chamber_temper} °C");
                     obs.UpdateText(this.bedTemp, $"{p.print.bed_temper}");
 
-                    obs.SetIconState(this.bedTempIcon, p.print.bed_target_temper == 0);
-                    obs.SetIconState(this.nozzleTempIcon, p.print.nozzle_target_temper == 0);
+                    obs.SetIconState(this.bedTempIcon, p.print.bed_target_temper > 0);
+                    obs.SetIconState(this.nozzleTempIcon, p.print.nozzle_target_temper > 0);
 
                     string targetBedTempStr = $" / {p.print.bed_target_temper} °C";
                     if (p.print.bed_target_temper == 0)
@@ -338,9 +338,9 @@ public class BambuStreamBackgroundService : BackgroundService
                     obs.UpdateText(this.auxFan, $"Aux: {p.print.GetFanSpeed(p.print.big_fan1_speed)}%");
                     obs.UpdateText(this.chamberFan, $"Chamber: {p.print.GetFanSpeed(p.print.big_fan2_speed)}%");
 
-                    obs.SetIconState(this.partFanIcon, p.print.cooling_fan_speed == "0");
-                    obs.SetIconState(this.auxFanIcon, p.print.big_fan1_speed == "0");
-                    obs.SetIconState(this.chamberFanIcon, p.print.big_fan2_speed == "0");
+                    obs.SetIconState(this.partFanIcon, p.print.cooling_fan_speed != "0");
+                    obs.SetIconState(this.auxFanIcon, p.print.big_fan1_speed != "0");
+                    obs.SetIconState(this.chamberFanIcon, p.print.big_fan2_speed != "0");
 
                     var tray = p.print.ams?.GetCurrentTray();
                     if (tray != null)
