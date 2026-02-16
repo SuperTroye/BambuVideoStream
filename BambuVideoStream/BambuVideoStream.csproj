@@ -18,7 +18,7 @@
     <Content Include="../README.md" CopyToOutputDirectory="Always" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="FluentFTP" Version="50.0.1" />
+    <PackageReference Include="FluentFTP" Version="53.0.2" />
     <PackageReference Include="FluentFTP.GnuTLS" Version="1.0.31" />
     <PackageReference Include="FluentFTP.Logging" Version="1.0.0" />
     <PackageReference Include="MQTTnet" Version="4.3.6.1152" />
